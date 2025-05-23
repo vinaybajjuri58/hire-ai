@@ -1,6 +1,4 @@
-# Next.js Chat Template
-
-This is a fully functional chat application template built with Next.js, React, TypeScript, and Supabase.
+# Hire Ai
 
 ## Setup Instructions
 

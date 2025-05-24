@@ -135,7 +135,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           <>
             <div className="mt-2 px-2">
               <div className="text-xs font-medium text-muted-foreground px-3 py-1">
-                Your Chats
+                Your Chat
               </div>
 
               {isLoading ? (
@@ -144,26 +144,24 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 </div>
               ) : chats.length === 0 ? (
                 <div className="px-3 py-2 text-sm text-muted-foreground">
-                  No chats yet
+                  No chat yet
                 </div>
               ) : (
                 <div className="space-y-1">
-                  {chats.map((chat) => (
-                    <Link
-                      key={chat.id}
-                      href={`/chat/${chat.id}`}
-                      className={cn(
-                        "flex items-center gap-2 px-3 py-2 text-sm rounded-md transition-colors",
-                        "hover:bg-muted",
-                        currentChatId === chat.id
-                          ? "bg-muted font-medium"
-                          : "text-muted-foreground"
-                      )}
-                    >
-                      <MessageSquare className="h-4 w-4" />
-                      <span className="truncate">{chat.title}</span>
-                    </Link>
-                  ))}
+                  <Link
+                    key={chats[0].id}
+                    href={`/chat/${chats[0].id}`}
+                    className={cn(
+                      "flex items-center gap-2 px-3 py-2 text-sm rounded-md transition-colors",
+                      "hover:bg-muted",
+                      currentChatId === chats[0].id
+                        ? "bg-muted font-medium"
+                        : "text-muted-foreground"
+                    )}
+                  >
+                    <MessageSquare className="h-4 w-4" />
+                    <span className="truncate">{chats[0].title}</span>
+                  </Link>
                 </div>
               )}
             </div>

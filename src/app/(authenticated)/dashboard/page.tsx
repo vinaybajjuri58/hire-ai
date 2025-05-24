@@ -11,10 +11,27 @@ import { MessageSquare, UserCircle } from "lucide-react"
 import { useRouter } from "next/navigation"
 import ClientLayout from "../client-layout"
 import { useProfile } from "@/hooks/useProfile"
+import { fetchFromApi, postToApi } from "@/utils/api"
 
 export default function DashboardPage() {
   const router = useRouter()
   const { isCandidate, isRecruiter } = useProfile()
+
+  async function handleCandidateSearch() {
+    // 1. Check for existing chat
+    const chatsResponse = await fetchFromApi<{ data: { id: string }[] }>(
+      "/chats"
+    )
+    if (chatsResponse.data && chatsResponse.data.length > 0) {
+      router.push(`/chat/${chatsResponse.data[0].id}`)
+      return
+    }
+    // 2. If not, create one
+    const chatResponse = await postToApi<{ data: { id: string } }>("/chats", {
+      title: "Candidate Search",
+    })
+    router.push(`/chat/${chatResponse.data.id}`)
+  }
 
   return (
     <ClientLayout>
@@ -31,7 +48,7 @@ export default function DashboardPage() {
           {isRecruiter && (
             <Card
               className="cursor-pointer hover:bg-muted/50 transition-colors"
-              onClick={() => router.push("/chat")}
+              onClick={handleCandidateSearch}
             >
               <CardHeader className="pb-2">
                 <CardTitle className="flex items-center gap-2">

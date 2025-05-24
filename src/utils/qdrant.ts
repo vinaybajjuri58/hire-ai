@@ -7,6 +7,7 @@ import * as pdfParse from "pdf-parse"
 const qdrantClient = new QdrantClient({
   url: process.env.QDRANT_URL,
   apiKey: process.env.QDRANT_API_KEY, // Optional, for Qdrant Cloud
+  timeout: 5000, // 5 second timeout
 })
 
 const openai = new OpenAI({
@@ -105,6 +106,8 @@ export async function searchResumes(
   limit: number = 10
 ): Promise<{ userId: string; similarity: number }[]> {
   try {
+    await initializeCollection()
+
     // Generate embedding for the query
     const queryEmbedding = await generateEmbedding(query)
 
@@ -122,7 +125,8 @@ export async function searchResumes(
     }))
   } catch (error) {
     console.error("Error searching resumes:", error)
-    throw error
+    // Return empty array instead of throwing to gracefully handle search failures
+    return []
   }
 }
 

@@ -4,8 +4,16 @@ import { z } from "zod"
 
 // Define validation schema for search parameters
 const searchParamsSchema = z.object({
-  query: z.string().min(1, "Search query is required"),
-  limit: z.number().int().positive().default(10),
+  query: z
+    .string()
+    .min(1, "Search query is required")
+    .max(100, "Search query too long"),
+  limit: z
+    .number()
+    .int()
+    .min(1, "Limit must be at least 1")
+    .max(50, "Limit cannot exceed 50")
+    .default(10),
 })
 
 // GET /api/profile/search - Search for candidates (for recruiters)

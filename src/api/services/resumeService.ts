@@ -49,6 +49,15 @@ export async function processResume(
     try {
       const resumeText = await extractTextFromPdf(file)
 
+      // Validate that the PDF has enough content
+      if (!resumeText || resumeText.trim().length < 50) {
+        return {
+          error:
+            "The resume appears to be empty or contains insufficient text content. Please upload a valid resume with meaningful content.",
+          status: 400,
+        }
+      }
+
       // Upload file to Supabase Storage
       const timestamp = Date.now()
       const storagePath = `${userId}/${timestamp}_${fileName}`

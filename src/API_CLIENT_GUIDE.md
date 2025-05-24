@@ -106,27 +106,7 @@ async function getCandidateProfile(candidateId: string) {
 }
 ```
 
-### Search Candidates (Basic Text Search)
-
-```typescript
-import { fetchFromApi } from "@/utils/api"
-import { TApiResponse, TUser } from "@/types"
-
-async function searchCandidates(query: string, limit: number = 10) {
-  try {
-    const params = new URLSearchParams({ query, limit: limit.toString() })
-    const response = await fetchFromApi<TApiResponse<TUser[]>>(
-      `/profile/search?${params}`
-    )
-    return response.data
-  } catch (error) {
-    console.error("Failed to search candidates:", error)
-    throw error
-  }
-}
-```
-
-### Semantic Resume Search
+### Search Candidates (Semantic Search)
 
 ```typescript
 import { fetchFromApi } from "@/utils/api"
@@ -143,15 +123,18 @@ type TCandidateResult = {
   similarity: number
 }
 
-async function searchResumes(query: string, limit: number = 10) {
+/**
+ * Search for candidates using semantic search
+ */
+async function searchCandidates(query: string, limit: number = 10) {
   try {
     const params = new URLSearchParams({ query, limit: limit.toString() })
     const response = await fetchFromApi<TApiResponse<TCandidateResult[]>>(
-      `/profile/resume/search?${params}`
+      `/profile/search?${params}`
     )
     return response.data
   } catch (error) {
-    console.error("Failed to search resumes:", error)
+    console.error("Failed to search candidates:", error)
     throw error
   }
 }
@@ -284,7 +267,7 @@ export function useResumeSearch() {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<Error | null>(null)
 
-  const searchResumes = useCallback(
+  const searchCandidates = useCallback(
     async (query: string, limit: number = 10) => {
       setIsLoading(true)
       try {
@@ -293,14 +276,14 @@ export function useResumeSearch() {
           limit: limit.toString(),
         })
         const response = await fetchFromApi<TApiResponse<TCandidateResult[]>>(
-          `/profile/resume/search?${params}`
+          `/profile/search?${params}`
         )
         setResults(response.data)
         setError(null)
         return response.data
       } catch (err) {
         const error =
-          err instanceof Error ? err : new Error("Failed to search resumes")
+          err instanceof Error ? err : new Error("Failed to search candidates")
         setError(error)
         throw error
       } finally {
@@ -314,7 +297,7 @@ export function useResumeSearch() {
     results,
     isLoading,
     error,
-    searchResumes,
+    searchCandidates,
   }
 }
 ```
@@ -468,12 +451,12 @@ import { useResumeSearch } from "@/hooks/useResumeSearch"
 
 export function CandidateSearch() {
   const [query, setQuery] = useState("")
-  const { results, isLoading, error, searchResumes } = useResumeSearch()
+  const { results, isLoading, error, searchCandidates } = useResumeSearch()
 
   async function handleSearch(e: React.FormEvent) {
     e.preventDefault()
     if (query.trim()) {
-      await searchResumes(query)
+      await searchCandidates(query)
     }
   }
 
@@ -641,15 +624,4 @@ type TApiError = {
   status: "error"
   details?: Array<{ path: string[]; message: string }>
 }
-```
-
-This allows you to use strong typing with API calls:
-
-```typescript
-import { fetchFromApi } from "@/utils/api"
-import { TApiResponse, TUser } from "@/types"
-
-const response = await fetchFromApi<TApiResponse<TUser[]>>(
-  "/profile/search?query=react"
-)
 ```

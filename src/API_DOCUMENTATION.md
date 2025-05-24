@@ -115,7 +115,7 @@ Retrieves a candidate's profile by ID. Only available to recruiters.
 
 #### `GET /api/profile/search?query={searchQuery}&limit={limit}`
 
-Searches for candidates using basic text search. Only available to recruiters.
+Searches for candidates using semantic search powered by Qdrant. Only available to recruiters.
 
 **Query Parameters:**
 
@@ -172,36 +172,6 @@ Deletes the authenticated candidate's resume.
 }
 ```
 
-#### `GET /api/profile/resume/search?query={searchQuery}&limit={limit}`
-
-Performs semantic search on candidate resumes. Only available to recruiters.
-
-**Query Parameters:**
-
-- `query`: Search query (required)
-- `limit`: Maximum number of results (default: 10)
-
-**Response:**
-
-```json
-{
-  "data": [
-    {
-      "id": "candidate-uuid",
-      "name": "Candidate Name",
-      "email": "candidate@example.com",
-      "github": "https://github.com/username",
-      "linkedin": "https://linkedin.com/in/username",
-      "twitter": "https://twitter.com/username",
-      "resume_url": "https://storage-url/resume.pdf",
-      "similarity": 0.92 // Semantic similarity score (0-1)
-    }
-    // Additional candidates
-  ],
-  "status": "success"
-}
-```
-
 ## Service Layer Integration
 
 The API endpoints are built on top of two main service modules:
@@ -213,7 +183,7 @@ Located at `src/api/services/profileService.ts`, this service handles:
 - User profile retrieval and management
 - Role-based access control
 - Social links management
-- Basic text search for candidates
+- Routing search requests to the semantic search engine
 
 Key functions:
 
@@ -221,7 +191,7 @@ Key functions:
 - `updateUserProfile`: Update a user's profile (prevents direct resume_url updates)
 - `updateSocialLinks`: Update a user's social media links
 - `getCandidateProfile`: Get a candidate's profile (for recruiters)
-- `searchCandidates`: Text-based search for candidates
+- `searchCandidates`: Redirects to semantic search functionality
 
 ### Resume Service
 
@@ -295,5 +265,4 @@ Error responses follow this format:
 
 - The `resume_url` field cannot be directly updated through the profile update endpoint.
 - PDF files are limited to 5MB and are validated for format before processing.
-- Semantic search uses the OpenAI embeddings API with the `text-embedding-ada-002` model.
-- Qdrant is used as a dedicated vector database instead of pgvector in Supabase for better performance and scalability.
+- All search functionality is powered by semantic search using OpenAI embeddings and Qdrant vector database.

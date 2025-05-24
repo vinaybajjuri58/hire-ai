@@ -381,59 +381,43 @@ export async function getCandidateProfile(
 
 /**
  * Search for candidates (for recruiters)
+ * Redirects to the semantic search in resumeService
  */
 export async function searchCandidates(
   recruiterId: string,
   query: string,
   limit: number = 10
 ): Promise<TApiResponse<TUser[]>> {
-  const supabase = await createClient()
-
   try {
-    // First verify the requester is a recruiter
-    const { data: recruiterData, error: recruiterError } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", recruiterId)
-      .single()
+    // Import resumeService dynamically to avoid circular dependencies
+    const resumeService = await import("@/api/services/resumeService")
 
-    if (
-      recruiterError ||
-      !recruiterData ||
-      recruiterData.role !== "recruiter"
-    ) {
+    // Use the semantic search from resumeService
+    const result = await resumeService.searchCandidateResumes(
+      recruiterId,
+      query,
+      limit
+    )
+
+    if ("error" in result || !result.data) {
       return {
-        error: "Unauthorized. Only recruiters can search for candidates.",
-        status: 403,
+        error: result.error || "No search results found",
+        status: result.status || 404,
       }
     }
 
-    // For now, implement a simple text search (this will be replaced with Qdrant search later)
-    const { data, error } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("role", "candidate")
-      .textSearch("resume_text", query)
-      .limit(limit)
-
-    if (error) {
-      return {
-        error: "Failed to search candidates: " + error.message,
-        status: 500,
-      }
-    }
-
+    // Convert the result format to match the expected TUser[] format
     return {
-      data: data.map((profile) => ({
-        id: profile.id,
-        name: profile.name || "",
-        email: profile.email,
-        createdAt: profile.created_at,
-        role: profile.role as UserRole,
-        github: profile.github,
-        linkedin: profile.linkedin,
-        twitter: profile.twitter,
-        resume_url: profile.resume_url,
+      data: result.data.map((candidate) => ({
+        id: candidate.id,
+        name: candidate.name || "",
+        email: candidate.email,
+        createdAt: new Date().toISOString(), // Create a timestamp since the source doesn't have it
+        role: UserRole.Candidate,
+        github: candidate.github,
+        linkedin: candidate.linkedin,
+        twitter: candidate.twitter,
+        resume_url: candidate.resume_url,
       })),
       status: 200,
     }

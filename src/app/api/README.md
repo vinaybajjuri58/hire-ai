@@ -16,10 +16,9 @@ The API is organized into the following sections:
 
 - `profile/`: Profile management endpoints
   - `[userId]/`: Get candidate profile by ID (for recruiters)
-  - `search/`: Search for candidates using basic text search
+  - `search/`: Semantic search for candidates (for recruiters)
   - `social/`: Update social media links
   - `resume/`: Resume upload and deletion
-    - `search/`: Semantic search for candidates based on resume content
 
 ## Service Layer
 
@@ -30,7 +29,16 @@ These API endpoints interact with the service layer in `src/api/services/`:
 
 ## Qdrant Integration
 
-The semantic search functionality is powered by Qdrant vector database, which is integrated through `src/utils/qdrant.ts`.
+All search functionality is powered by Qdrant vector database, which provides semantic search capabilities. The integration is managed through `src/utils/qdrant.ts`.
+
+When a candidate uploads a resume:
+
+1. The text is extracted from the PDF
+2. The text is converted to a vector embedding using OpenAI
+3. The vector is stored in Qdrant with candidate metadata
+4. The Qdrant point ID is stored in Supabase for reference
+
+All search functionality is provided through the `/api/profile/search` endpoint.
 
 ## Security
 

@@ -40,41 +40,19 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams
     const query = searchParams.get("query") || ""
     const limitParam = searchParams.get("limit")
-    let limit = 10 // Default limit
 
+    // Parse limit with proper validation
+    let limit = 10 // Default limit
     if (limitParam) {
-      try {
-        limit = parseInt(limitParam, 10)
-        if (isNaN(limit) || limit <= 0) {
-          limit = 10
-        }
-      } catch (e) {
-        // Ignore parsing errors and use default
+      const parsedLimit = parseInt(limitParam, 10)
+      if (!isNaN(parsedLimit) && parsedLimit > 0) {
+        limit = Math.min(parsedLimit, 50) // Cap at 50
       }
     }
 
+    // Validate parameters
     try {
-      // Validate parameters
       searchParamsSchema.parse({ query, limit })
-
-      // Call the service function to search candidates
-      const result = await profileService.searchCandidates(
-        user.id,
-        query,
-        limit
-      )
-
-      if ("error" in result) {
-        return NextResponse.json(
-          { error: result.error, status: "error" },
-          { status: result.status }
-        )
-      }
-
-      return NextResponse.json(
-        { data: result.data, status: "success" },
-        { status: 200 }
-      )
     } catch (validationError) {
       if (validationError instanceof z.ZodError) {
         return NextResponse.json(
@@ -88,6 +66,21 @@ export async function GET(request: NextRequest) {
       }
       throw validationError
     }
+
+    // Call the service function to search candidates
+    const result = await profileService.searchCandidates(user.id, query, limit)
+
+    if ("error" in result) {
+      return NextResponse.json(
+        { error: result.error, status: "error" },
+        { status: result.status }
+      )
+    }
+
+    return NextResponse.json(
+      { data: result.data, status: "success" },
+      { status: 200 }
+    )
   } catch (error) {
     console.error("Search candidates error:", error)
     return NextResponse.json(

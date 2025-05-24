@@ -42,8 +42,9 @@ export async function extractTextFromPdf(pdfBuffer: Buffer): Promise<string> {
     const data = await pdfParse.default(pdfBuffer)
     return data.text
   } catch (error) {
-    console.error("Error extracting text from PDF:", error)
-    throw error
+    const errorMessage = error instanceof Error ? error.message : String(error)
+    console.error(`Error extracting text from PDF: ${errorMessage}`)
+    throw new Error(`Failed to extract text from PDF: ${errorMessage}`)
   }
 }
 
@@ -57,8 +58,9 @@ export async function generateEmbedding(text: string): Promise<number[]> {
 
     return response.data[0].embedding
   } catch (error) {
-    console.error("Error generating embedding:", error)
-    throw error
+    const errorMessage = error instanceof Error ? error.message : String(error)
+    console.error(`Error generating embedding: ${errorMessage}`)
+    throw new Error(`Failed to generate text embedding: ${errorMessage}`)
   }
 }
 
@@ -95,8 +97,11 @@ export async function storeResume(
 
     return pointId
   } catch (error) {
-    console.error("Error storing resume in Qdrant:", error)
-    throw error
+    const errorMessage = error instanceof Error ? error.message : String(error)
+    console.error(`Error storing resume in Qdrant: ${errorMessage}`)
+    throw new Error(
+      `Failed to store resume in vector database: ${errorMessage}`
+    )
   }
 }
 
@@ -137,8 +142,11 @@ export async function deleteResume(pointId: string): Promise<void> {
       points: [pointId],
     })
   } catch (error) {
-    console.error("Error deleting resume from Qdrant:", error)
-    throw error
+    const errorMessage = error instanceof Error ? error.message : String(error)
+    console.error(`Error deleting resume from Qdrant: ${errorMessage}`)
+    throw new Error(
+      `Failed to delete resume from vector database: ${errorMessage}`
+    )
   }
 }
 

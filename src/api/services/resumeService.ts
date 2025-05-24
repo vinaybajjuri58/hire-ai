@@ -264,11 +264,16 @@ export async function deleteResumeForUser(
       }
     }
 
+    const cleanupErrors: string[] = []
+
     // Delete from Qdrant if point ID exists
     if (qdrantPointId) {
       try {
         await deleteResume(qdrantPointId)
       } catch (error) {
+        const errorMessage =
+          error instanceof Error ? error.message : String(error)
+        cleanupErrors.push(`Qdrant cleanup: ${errorMessage}`)
         console.error("Error deleting from Qdrant:", error)
         // Continue with other cleanup steps
       }
@@ -285,6 +290,9 @@ export async function deleteResumeForUser(
           await supabase.storage.from("resumes").remove([path])
         }
       } catch (error) {
+        const errorMessage =
+          error instanceof Error ? error.message : String(error)
+        cleanupErrors.push(`Storage cleanup: ${errorMessage}`)
         console.error("Error deleting from Storage:", error)
         // Continue with profile update
       }
@@ -308,14 +316,22 @@ export async function deleteResumeForUser(
       }
     }
 
+    // If there were cleanup errors but the profile was updated, return a warning
+    if (cleanupErrors.length > 0) {
+      console.warn(
+        `Resume deletion completed with warnings: ${cleanupErrors.join("; ")}`
+      )
+    }
+
     return {
       data: null,
       status: 200,
     }
   } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error)
     console.error("Resume deletion error:", error)
     return {
-      error: "Failed to delete resume",
+      error: `Failed to delete resume: ${errorMessage}`,
       status: 500,
     }
   }

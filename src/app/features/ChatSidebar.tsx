@@ -2,12 +2,10 @@
 
 import { useEffect, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
-import { PlusCircle } from "lucide-react"
 
 import { ChatSidebar as ChatSidebarComponent } from "@/components/ChatSidebar"
 import { TChatListItem } from "@/types/chat"
 import { fetchFromApi, postToApi } from "@/utils/api"
-import { Button } from "@/components/ui/button"
 
 export function ChatSidebar() {
   const params = useParams()
@@ -23,7 +21,6 @@ export function ChatSidebar() {
         const data = await fetchFromApi<{ data: TChatListItem[] }>("/chats")
         setChats(data.data || [])
       } catch (err) {
-        console.error("Error fetching chats:", err)
         setError(
           err instanceof Error
             ? err.message
@@ -64,7 +61,6 @@ export function ChatSidebar() {
         ...prevChats,
       ])
     } catch (err) {
-      console.error("Error creating new chat:", err)
       setError(
         err instanceof Error
           ? err.message
@@ -75,16 +71,6 @@ export function ChatSidebar() {
 
   return (
     <div className="px-2">
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={handleCreateNewChat}
-        className="flex w-full justify-start items-center text-muted-foreground mb-2"
-      >
-        <PlusCircle className="mr-2 h-4 w-4" />
-        <span>New Chat</span>
-      </Button>
-
       <ChatSidebarComponent
         chats={chats}
         loading={loading}

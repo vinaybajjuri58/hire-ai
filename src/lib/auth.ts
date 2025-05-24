@@ -5,7 +5,7 @@ import { redirect } from "next/navigation"
 export const publicRoutes = ["/"]
 
 // Protected routes that require authentication
-export const protectedRoutes = ["/dashboard"]
+export const protectedRoutes = ["/dashboard", "/select-role", "/profile"]
 
 // Auth routes (login/signup)
 export const authRoutes = ["/login", "/signup"]

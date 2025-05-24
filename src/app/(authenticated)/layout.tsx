@@ -1,6 +1,7 @@
 import { requireAuth } from "@/lib/auth"
 import { AppSidebar } from "@/components/app-sidebar"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
+import { UserProvider } from "@/providers/UserProvider"
 
 // This layout is for authenticated pages like dashboard, account, etc.
 export default async function AuthenticatedLayout({
@@ -12,9 +13,11 @@ export default async function AuthenticatedLayout({
   await requireAuth()
 
   return (
-    <SidebarProvider>
-      <AppSidebar />
-      <SidebarInset>{children}</SidebarInset>
-    </SidebarProvider>
+    <UserProvider>
+      <SidebarProvider>
+        <AppSidebar />
+        <SidebarInset>{children}</SidebarInset>
+      </SidebarProvider>
+    </UserProvider>
   )
 }

@@ -1,7 +1,7 @@
 import { QdrantClient } from "@qdrant/js-client-rest"
 import { OpenAI } from "openai"
 import { v4 as uuidv4 } from "uuid"
-import * as pdfParse from "pdf-parse"
+// Import pdf-parse dynamically to avoid build-time issues
 
 // Initialize clients
 const qdrantClient = new QdrantClient({
@@ -39,6 +39,9 @@ export async function initializeCollection() {
 // Extract text from a PDF buffer
 export async function extractTextFromPdf(pdfBuffer: Buffer): Promise<string> {
   try {
+    // Only import pdf-parse when this function is actually called
+    // This prevents build-time errors related to test files
+    const pdfParse = await import("pdf-parse")
     const data = await pdfParse.default(pdfBuffer)
     return data.text
   } catch (error) {

@@ -15,6 +15,7 @@ import { useRouter } from "next/navigation"
 import { useState } from "react"
 import { ErrorMessage } from "@/components/ui/error-message"
 import { LoadingIndicator } from "@/components/ui/loading-indicator"
+import Link from "next/link"
 
 export default function SelectRolePage() {
   const { user, updateUser, isLoading } = useUser()
@@ -64,8 +65,8 @@ export default function SelectRolePage() {
 
   return (
     <div className="flex items-center justify-center min-h-screen bg-background">
-      <div className="p-4 w-full max-w-md">
-        <Card className="w-full">
+      <div className="p-4 w-full ">
+        <Card className="w-full max-w-xl mx-auto shadow-lg border border-white/10 bg-background/80 backdrop-blur">
           <CardHeader className="space-y-1">
             <CardTitle className="text-2xl">Select Your Role</CardTitle>
             <CardDescription>
@@ -85,13 +86,22 @@ export default function SelectRolePage() {
               variant={
                 user?.role === UserRole.Candidate ? "default" : "outline"
               }
-              className="h-auto w-full py-4 px-4 flex items-center gap-4 justify-start"
+              className={`
+                w-full h-auto py-5 px-5 rounded-xl flex items-center gap-4 justify-start transition
+                ${
+                  user?.role === UserRole.Candidate
+                    ? "bg-primary/80 text-white shadow-md"
+                    : "bg-transparent text-muted-foreground hover:bg-accent/40 hover:text-foreground"
+                }
+              `}
               onClick={() => handleRoleSelection(UserRole.Candidate)}
               disabled={isUpdating}
             >
               <UserCircle className="h-6 w-6 flex-shrink-0" />
               <div className="flex-1 min-w-0 text-left">
-                <div className="font-medium">
+                <div
+                  className={`font-semibold text-lg ${user?.role === UserRole.Candidate ? "text-white" : "text-foreground"}`}
+                >
                   I'm looking for jobs
                   {user?.role === UserRole.Candidate && (
                     <span className="ml-2 text-xs bg-primary/20 text-primary px-2 py-0.5 rounded-full">
@@ -99,7 +109,9 @@ export default function SelectRolePage() {
                     </span>
                   )}
                 </div>
-                <div className="text-sm text-muted-foreground mt-1">
+                <div
+                  className={`text-sm mt-1 ${user?.role === UserRole.Candidate ? "text-blue-100" : "text-muted-foreground"}`}
+                >
                   Create a profile, upload your resume, and get matched with
                   opportunities
                 </div>
@@ -110,13 +122,22 @@ export default function SelectRolePage() {
               variant={
                 user?.role === UserRole.Recruiter ? "default" : "outline"
               }
-              className="h-auto w-full py-4 px-4 flex items-center gap-4 justify-start"
+              className={`
+                w-full h-auto py-5 px-5 rounded-xl flex items-center gap-4 justify-start transition
+                ${
+                  user?.role === UserRole.Recruiter
+                    ? "bg-primary/80 text-white shadow-md"
+                    : "bg-transparent text-muted-foreground hover:bg-accent/40 hover:text-foreground"
+                }
+              `}
               onClick={() => handleRoleSelection(UserRole.Recruiter)}
               disabled={isUpdating}
             >
               <Users className="h-6 w-6 flex-shrink-0" />
               <div className="flex-1 min-w-0 text-left">
-                <div className="font-medium">
+                <div
+                  className={`font-semibold text-lg ${user?.role === UserRole.Recruiter ? "text-white" : "text-foreground"}`}
+                >
                   I'm hiring candidates
                   {user?.role === UserRole.Recruiter && (
                     <span className="ml-2 text-xs bg-primary/20 text-primary px-2 py-0.5 rounded-full">
@@ -124,7 +145,9 @@ export default function SelectRolePage() {
                     </span>
                   )}
                 </div>
-                <div className="text-sm text-muted-foreground mt-1">
+                <div
+                  className={`text-sm mt-1 ${user?.role === UserRole.Recruiter ? "text-blue-100" : "text-muted-foreground"}`}
+                >
                   Search for qualified candidates, review profiles, and contact
                   matches
                 </div>
@@ -136,6 +159,14 @@ export default function SelectRolePage() {
                 <LoadingIndicator text="Updating your role..." />
               </div>
             )}
+            <div className="pt-2 text-xs text-muted-foreground text-center">
+              <Link
+                href="/profile"
+                className="underline hover:text-primary transition"
+              >
+                Go to your profile
+              </Link>
+            </div>
           </CardContent>
         </Card>
       </div>

@@ -44,7 +44,7 @@ export default function SelectRolePage() {
       setError("")
 
       // Update the user's role and mark it as explicitly selected
-      const updatedUser = await updateUser({
+      await updateUser({
         role,
         role_selected: true,
       })
@@ -102,7 +102,7 @@ export default function SelectRolePage() {
                 <div
                   className={`font-semibold text-lg ${user?.role === UserRole.Candidate ? "text-white" : "text-foreground"}`}
                 >
-                  I'm looking for jobs
+                  I&apos;m looking for jobs
                   {user?.role === UserRole.Candidate && (
                     <span className="ml-2 text-xs bg-primary/20 text-primary px-2 py-0.5 rounded-full">
                       Current
@@ -138,7 +138,7 @@ export default function SelectRolePage() {
                 <div
                   className={`font-semibold text-lg ${user?.role === UserRole.Recruiter ? "text-white" : "text-foreground"}`}
                 >
-                  I'm hiring candidates
+                  I&apos;m hiring candidates
                   {user?.role === UserRole.Recruiter && (
                     <span className="ml-2 text-xs bg-primary/20 text-primary px-2 py-0.5 rounded-full">
                       Current

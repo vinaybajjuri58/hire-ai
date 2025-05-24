@@ -8,9 +8,6 @@ import {
   UserRole,
 } from "@/types"
 
-// Helper function to wait for a specified time
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
-
 export async function login(
   credentials: TLoginRequest
 ): Promise<TApiResponse<TAuthResponse>> {
@@ -166,7 +163,6 @@ export async function login(
 export async function signup(
   userData: TSignupRequest
 ): Promise<TApiResponse<TAuthResponse>> {
-  const supabase = await createClient()
   const adminClient = createAdminClient()
 
   try {

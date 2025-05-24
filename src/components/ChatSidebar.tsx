@@ -12,7 +12,6 @@ type ChatSidebarProps = {
   loading?: boolean
   error?: string | null
   activeChatId?: string
-  onCreateChat?: () => void
   compact?: boolean
 }
 
@@ -21,7 +20,6 @@ export function ChatSidebar({
   loading = false,
   error = null,
   activeChatId,
-  onCreateChat,
   compact = false,
 }: ChatSidebarProps) {
   return (

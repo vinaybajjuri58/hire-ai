@@ -8,7 +8,7 @@ import {
   ReactNode,
 } from "react"
 import { fetchFromApi, putToApi } from "@/utils/api"
-import { TApiResponse, TUser, UserRole } from "@/types/api"
+import { TApiResponse, TUser } from "@/types/api"
 import { usePathname, useRouter } from "next/navigation"
 
 // Context type

@@ -1,12 +1,7 @@
 "use client"
 
 import * as React from "react"
-import {
-  LayoutDashboard,
-  MessageSquare,
-  PlusCircle,
-  UserCircle,
-} from "lucide-react"
+import { LayoutDashboard, MessageSquare, UserCircle } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 
@@ -23,17 +18,14 @@ import {
   SidebarRail,
 } from "@/components/ui/sidebar"
 import { Button } from "@/components/ui/button"
-import { useRouter } from "next/navigation"
-import { fetchFromApi, postToApi } from "@/utils/api"
+import { fetchFromApi } from "@/utils/api"
 import { TChatListItem } from "@/types/chat"
 import { useState, useEffect } from "react"
 import { cn } from "@/lib/utils"
 import { useProfile } from "@/hooks/useProfile"
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
-  const router = useRouter()
   const pathname = usePathname()
-  const [isCreating, setIsCreating] = useState(false)
   const [chats, setChats] = useState<TChatListItem[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const { profile, isCandidate, isRecruiter } = useProfile()
@@ -61,40 +53,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       console.error("Error fetching chats:", err)
     } finally {
       setIsLoading(false)
-    }
-  }
-
-  async function handleCreateNewChat() {
-    try {
-      setIsCreating(true)
-
-      // Generate a sequential title based on the number of existing chats
-      const chatNumber = chats.length + 1
-      const chatTitle = `Chat ${chatNumber}`
-
-      const data = await postToApi<{ data: { id: string } }, { title: string }>(
-        "/chats",
-        {
-          title: chatTitle,
-        }
-      )
-
-      // Update the local chats list with the new chat
-      const newChat = {
-        id: data.data.id,
-        title: chatTitle,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      }
-
-      setChats([newChat, ...chats])
-
-      // Navigate to the new chat
-      router.push(`/chat/${data.data.id}`)
-    } catch (err) {
-      console.error("Error creating new chat:", err)
-    } finally {
-      setIsCreating(false)
     }
   }
 

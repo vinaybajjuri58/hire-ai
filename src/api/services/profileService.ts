@@ -243,7 +243,6 @@ export async function updateProfileAfterLogin(
     twitter?: string
   }
 ): Promise<TApiResponse<TUser>> {
-  const supabase = await createClient()
   const adminClient = createAdminClient()
 
   try {
@@ -324,7 +323,6 @@ export async function getCandidateProfile(
   recruiterId: string,
   candidateId: string
 ): Promise<TApiResponse<TUser>> {
-  const supabase = await createClient()
   const adminClient = createAdminClient()
 
   try {

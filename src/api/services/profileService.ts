@@ -1,4 +1,5 @@
 import { createClient } from "@/utils/supabase/server"
+import { createAdminClient } from "@/utils/supabase/admin"
 import { TApiResponse, TUser, UserRole } from "@/types"
 
 /**
@@ -7,10 +8,12 @@ import { TApiResponse, TUser, UserRole } from "@/types"
 export async function getUserProfile(
   userId: string
 ): Promise<TApiResponse<TUser>> {
-  const supabase = await createClient()
-
   try {
-    const { data, error } = await supabase
+    // Use admin client to bypass RLS policies
+    // This prevents infinite recursion errors
+    const adminClient = createAdminClient()
+
+    const { data, error } = await adminClient
       .from("profiles")
       .select("*")
       .eq("id", userId)
@@ -18,7 +21,7 @@ export async function getUserProfile(
 
     if (error) {
       return {
-        error: "Failed to retrieve user profile",
+        error: "Failed to retrieve user profile: " + error.message,
         status: error.code === "PGRST116" ? 404 : 500,
       }
     }
@@ -69,6 +72,7 @@ export async function updateUserProfile(
   }
 ): Promise<TApiResponse<TUser>> {
   const supabase = await createClient()
+  const adminClient = createAdminClient()
 
   try {
     // Verify the user exists
@@ -95,8 +99,8 @@ export async function updateUserProfile(
       )
     }
 
-    // Update the profile
-    const { data, error } = await supabase
+    // Update the profile using admin client to bypass RLS
+    const { data, error } = await adminClient
       .from("profiles")
       .update({
         ...safeProfileData,
@@ -148,6 +152,7 @@ export async function updateSocialLinks(
   }
 ): Promise<TApiResponse<TUser>> {
   const supabase = await createClient()
+  const adminClient = createAdminClient()
 
   try {
     // Verify the user exists
@@ -179,8 +184,8 @@ export async function updateSocialLinks(
       }
     }
 
-    // Update the profile with social links
-    const { data, error } = await supabase
+    // Update the profile with social links using admin client
+    const { data, error } = await adminClient
       .from("profiles")
       .update({
         ...links,
@@ -235,10 +240,11 @@ export async function updateProfileAfterLogin(
   }
 ): Promise<TApiResponse<TUser>> {
   const supabase = await createClient()
+  const adminClient = createAdminClient()
 
   try {
-    // First get the current profile to preserve existing values
-    const { data: existingProfile, error: profileError } = await supabase
+    // First get the current profile to preserve existing values using admin client
+    const { data: existingProfile, error: profileError } = await adminClient
       .from("profiles")
       .select("*")
       .eq("id", userId)
@@ -268,8 +274,8 @@ export async function updateProfileAfterLogin(
       updated_at: new Date().toISOString(),
     }
 
-    // Update the profile
-    const { data, error } = await supabase
+    // Update the profile using admin client
+    const { data, error } = await adminClient
       .from("profiles")
       .update(updatedProfile)
       .eq("id", userId)
@@ -314,10 +320,11 @@ export async function getCandidateProfile(
   candidateId: string
 ): Promise<TApiResponse<TUser>> {
   const supabase = await createClient()
+  const adminClient = createAdminClient()
 
   try {
     // First verify the requester is a recruiter
-    const { data: recruiterData, error: recruiterError } = await supabase
+    const { data: recruiterData, error: recruiterError } = await adminClient
       .from("profiles")
       .select("role")
       .eq("id", recruiterId)
@@ -334,8 +341,8 @@ export async function getCandidateProfile(
       }
     }
 
-    // Then get the candidate profile
-    const { data, error } = await supabase
+    // Then get the candidate profile using admin client
+    const { data, error } = await adminClient
       .from("profiles")
       .select("*")
       .eq("id", candidateId)

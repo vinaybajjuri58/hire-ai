@@ -5,6 +5,7 @@ import {
   TAuthResponse,
   TLoginRequest,
   TSignupRequest,
+  UserRole,
 } from "@/types"
 
 // Helper function to wait for a specified time
@@ -81,6 +82,7 @@ export async function login(
           id: data.user.id,
           email: data.user.email,
           name: data.user.user_metadata?.name || "",
+          role: UserRole.Candidate, // Use enum instead of string
           updated_at: new Date().toISOString(),
           created_at: new Date().toISOString(),
         })
@@ -100,6 +102,7 @@ export async function login(
               name: data.user.user_metadata?.name || "",
               email: data.user.email || "",
               createdAt: new Date().toISOString(),
+              role: UserRole.Candidate, // Use enum instead of string
             },
             token: data.session?.access_token,
             emailVerified: false,
@@ -122,6 +125,11 @@ export async function login(
           name: userData.name || "",
           email: userData.email,
           createdAt: userData.created_at,
+          role: userData.role,
+          github: userData.github || "",
+          linkedin: userData.linkedin || "",
+          twitter: userData.twitter || "",
+          resume_url: userData.resume_url || "",
         },
         token: data.session?.access_token,
         emailVerified: true,
@@ -236,11 +244,12 @@ export async function signup(
     // Just wait a moment to make sure it's created
     await sleep(1000)
 
-    // Try to update the name in the profile
+    // Try to update the profile with name and role
     const { error: updateError } = await supabase
       .from("profiles")
       .update({
         name: userData.name,
+        role: userData.role || UserRole.Candidate, // Use enum instead of string
         updated_at: new Date().toISOString(),
       })
       .eq("id", authData.user.id)
@@ -257,6 +266,7 @@ export async function signup(
           name: userData.name,
           email: userData.email,
           createdAt: new Date().toISOString(),
+          role: userData.role || UserRole.Candidate, // Use enum instead of string
         },
         // No token - must verify email first
         emailVerified: false,

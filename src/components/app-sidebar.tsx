@@ -133,18 +133,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         {/* Recruiter-specific navigation */}
         {isRecruiter && (
           <>
-            <div className="px-3 py-2">
-              <Button
-                variant="secondary"
-                className="w-full justify-start"
-                onClick={handleCreateNewChat}
-                disabled={isCreating}
-              >
-                <PlusCircle className="mr-2 h-4 w-4" />
-                {isCreating ? "Creating..." : "New Chat"}
-              </Button>
-            </div>
-
             <div className="mt-2 px-2">
               <div className="text-xs font-medium text-muted-foreground px-3 py-1">
                 Your Chats

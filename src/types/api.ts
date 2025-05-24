@@ -11,6 +11,7 @@ export type TUser = {
   email: string
   createdAt: string // ISO date string format
   role?: UserRole
+  role_selected?: boolean // Tracks whether the user has explicitly selected their role
   github?: string
   linkedin?: string
   twitter?: string

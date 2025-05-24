@@ -40,6 +40,7 @@ export async function getUserProfile(
         email: data.email,
         createdAt: data.created_at,
         role: data.role as UserRole,
+        role_selected: data.role_selected || false,
         github: data.github || "",
         linkedin: data.linkedin || "",
         twitter: data.twitter || "",
@@ -66,6 +67,7 @@ export async function updateUserProfile(
   profileData: {
     name?: string
     role?: UserRole
+    role_selected?: boolean
     github?: string
     linkedin?: string
     twitter?: string
@@ -124,6 +126,7 @@ export async function updateUserProfile(
         email: data.email,
         createdAt: data.created_at,
         role: data.role as UserRole,
+        role_selected: data.role_selected || false,
         github: data.github,
         linkedin: data.linkedin,
         twitter: data.twitter,
@@ -209,6 +212,7 @@ export async function updateSocialLinks(
         email: data.email,
         createdAt: data.created_at,
         role: data.role as UserRole,
+        role_selected: data.role_selected || false,
         github: data.github,
         linkedin: data.linkedin,
         twitter: data.twitter,
@@ -296,6 +300,7 @@ export async function updateProfileAfterLogin(
         email: data.email,
         createdAt: data.created_at,
         role: data.role as UserRole,
+        role_selected: data.role_selected || false,
         github: data.github,
         linkedin: data.linkedin,
         twitter: data.twitter,
@@ -370,6 +375,7 @@ export async function getCandidateProfile(
         email: data.email,
         createdAt: data.created_at,
         role: data.role as UserRole,
+        role_selected: data.role_selected || false,
         github: data.github,
         linkedin: data.linkedin,
         twitter: data.twitter,
@@ -421,6 +427,7 @@ export async function searchCandidates(
         email: candidate.email,
         createdAt: new Date().toISOString(), // Create a timestamp since the source doesn't have it
         role: UserRole.Candidate,
+        // Don't include role_selected since it's not in the source data
         github: candidate.github,
         linkedin: candidate.linkedin,
         twitter: candidate.twitter,

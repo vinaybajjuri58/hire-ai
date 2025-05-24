@@ -95,7 +95,7 @@ export async function POST(request: NextRequest) {
 }
 
 // DELETE /api/profile/resume - Delete a resume
-export async function DELETE(request: NextRequest) {
+export async function DELETE() {
   try {
     // Get user ID from the server-side Supabase client session
     const supabase = await import("@/utils/supabase/server").then((mod) =>

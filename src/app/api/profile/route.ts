@@ -13,7 +13,7 @@ const updateProfileSchema = z.object({
 })
 
 // GET /api/profile - Get current user profile
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     // Get user ID from the server-side Supabase client session
     const supabase = await import("@/utils/supabase/server").then((mod) =>

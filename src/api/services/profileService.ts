@@ -170,7 +170,7 @@ export async function updateSocialLinks(
         try {
           // Simple URL validation
           new URL(url)
-        } catch (e) {
+        } catch {
           return {
             error: `Invalid URL format for ${key}`,
             status: 400,

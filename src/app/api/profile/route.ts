@@ -7,6 +7,7 @@ import { UserRole } from "@/types"
 const updateProfileSchema = z.object({
   name: z.string().min(1).max(100).optional(),
   role: z.enum([UserRole.Candidate, UserRole.Recruiter]).optional(),
+  role_selected: z.boolean().optional(),
   github: z.string().url().max(255).nullish(),
   linkedin: z.string().url().max(255).nullish(),
   twitter: z.string().url().max(255).nullish(),
@@ -84,6 +85,7 @@ export async function PUT(request: NextRequest) {
       const sanitizedData = {
         name: validatedData.name,
         role: validatedData.role,
+        role_selected: validatedData.role_selected,
         github:
           validatedData.github === null ? undefined : validatedData.github,
         linkedin:

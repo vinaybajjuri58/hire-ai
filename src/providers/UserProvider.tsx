@@ -9,6 +9,7 @@ import {
 } from "react"
 import { fetchFromApi, putToApi } from "@/utils/api"
 import { TApiResponse, TUser, UserRole } from "@/types/api"
+import { usePathname, useRouter } from "next/navigation"
 
 // Context type
 type TUserContextType = {
@@ -40,6 +41,8 @@ export function UserProvider({ children }: TUserProviderProps) {
   const [error, setError] = useState<Error | null>(null)
   const [retryCount, setRetryCount] = useState(0)
   const maxRetries = 3
+  const router = useRouter()
+  const pathname = usePathname()
 
   // Fetch user profile
   const refreshUser = async () => {
@@ -77,7 +80,12 @@ export function UserProvider({ children }: TUserProviderProps) {
   const updateUser = async (data: Partial<TUser>) => {
     try {
       const response = await putToApi<TApiResponse<TUser>>("/profile", data)
-      setUser(response.data || null)
+
+      if (response.data) {
+        // Directly set the user with the new data from the response
+        setUser(response.data)
+      }
+
       return response.data || null
     } catch (err) {
       const error =
@@ -86,6 +94,19 @@ export function UserProvider({ children }: TUserProviderProps) {
       throw error
     }
   }
+
+  // Check if user needs to select a role and redirect if needed
+  useEffect(() => {
+    // Skip this effect when loading, on the select-role page, or if we don't have user data yet
+    if (isLoading || pathname === "/select-role" || !user) {
+      return
+    }
+
+    // If user hasn't explicitly selected a role, redirect to role selection page
+    if (user.role_selected !== true) {
+      router.push("/select-role")
+    }
+  }, [user, isLoading, pathname, router])
 
   // Load user on mount
   useEffect(() => {

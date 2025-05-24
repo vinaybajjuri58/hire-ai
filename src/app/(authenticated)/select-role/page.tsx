@@ -1,6 +1,6 @@
 "use client"
 
-import { useProfile } from "@/hooks/useProfile"
+import { useUser } from "@/providers/UserProvider"
 import { UserRole } from "@/types/api"
 import {
   Card,
@@ -17,7 +17,7 @@ import { ErrorMessage } from "@/components/ui/error-message"
 import { LoadingIndicator } from "@/components/ui/loading-indicator"
 
 export default function SelectRolePage() {
-  const { profile, updateProfile, isLoading } = useProfile()
+  const { user, updateUser, isLoading } = useUser()
   const [isUpdating, setIsUpdating] = useState(false)
   const [error, setError] = useState("")
   const router = useRouter()
@@ -31,13 +31,10 @@ export default function SelectRolePage() {
   }
 
   // If user has already explicitly selected a role, redirect to dashboard
-  if (profile?.role_selected) {
+  if (user?.role_selected) {
     router.push("/dashboard")
     return null
   }
-
-  // For users with candidate role, we can still let them see the selection page
-  // This gives them a chance to switch to recruiter if they want
 
   // This is a placeholder - will be fully implemented in Phase 2
   const handleRoleSelection = async (role: UserRole) => {
@@ -46,7 +43,7 @@ export default function SelectRolePage() {
       setError("")
 
       // Update the user's role and mark it as explicitly selected
-      await updateProfile({
+      const updatedUser = await updateUser({
         role,
         role_selected: true,
       })
@@ -68,34 +65,35 @@ export default function SelectRolePage() {
   return (
     <div className="flex items-center justify-center min-h-screen bg-background">
       <div className="p-4 w-full max-w-md">
-        <Card>
+        <Card className="w-full">
           <CardHeader className="space-y-1">
             <CardTitle className="text-2xl">Select Your Role</CardTitle>
             <CardDescription>
               Choose how you want to use the AI Hiring Platform
-              {profile?.role === UserRole.Candidate && (
+              {user?.role === UserRole.Candidate && (
                 <span className="block mt-1 text-primary font-medium">
                   You currently have the candidate role
                 </span>
               )}
             </CardDescription>
           </CardHeader>
+
           <CardContent className="grid gap-4">
             {error && <ErrorMessage message={error} />}
 
             <Button
               variant={
-                profile?.role === UserRole.Candidate ? "default" : "outline"
+                user?.role === UserRole.Candidate ? "default" : "outline"
               }
-              className="h-auto py-4 flex items-start gap-4 justify-start"
+              className="h-auto w-full py-4 px-4 flex items-center gap-4 justify-start"
               onClick={() => handleRoleSelection(UserRole.Candidate)}
               disabled={isUpdating}
             >
-              <UserCircle className="h-6 w-6" />
-              <div className="text-left">
+              <UserCircle className="h-6 w-6 flex-shrink-0" />
+              <div className="flex-1 min-w-0 text-left">
                 <div className="font-medium">
                   I'm looking for jobs
-                  {profile?.role === UserRole.Candidate && (
+                  {user?.role === UserRole.Candidate && (
                     <span className="ml-2 text-xs bg-primary/20 text-primary px-2 py-0.5 rounded-full">
                       Current
                     </span>
@@ -109,14 +107,23 @@ export default function SelectRolePage() {
             </Button>
 
             <Button
-              variant="outline"
-              className="h-auto py-4 flex items-start gap-4 justify-start"
+              variant={
+                user?.role === UserRole.Recruiter ? "default" : "outline"
+              }
+              className="h-auto w-full py-4 px-4 flex items-center gap-4 justify-start"
               onClick={() => handleRoleSelection(UserRole.Recruiter)}
               disabled={isUpdating}
             >
-              <Users className="h-6 w-6" />
-              <div className="text-left">
-                <div className="font-medium">I'm hiring candidates</div>
+              <Users className="h-6 w-6 flex-shrink-0" />
+              <div className="flex-1 min-w-0 text-left">
+                <div className="font-medium">
+                  I'm hiring candidates
+                  {user?.role === UserRole.Recruiter && (
+                    <span className="ml-2 text-xs bg-primary/20 text-primary px-2 py-0.5 rounded-full">
+                      Current
+                    </span>
+                  )}
+                </div>
                 <div className="text-sm text-muted-foreground mt-1">
                   Search for qualified candidates, review profiles, and contact
                   matches

@@ -4,10 +4,11 @@ import * as profileService from "@/api/services/profileService"
 // GET /api/profile/[userId] - Get a candidate profile by ID (for recruiters)
 export async function GET(
   request: NextRequest,
-  { params }: { params: { userId: string } }
+  { params }: { params: Promise<{ userId: string }> }
 ) {
   try {
-    const candidateId = params.userId
+    const resolvedParams = await params
+    const candidateId = resolvedParams.userId
 
     if (!candidateId) {
       return NextResponse.json(

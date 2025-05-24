@@ -306,7 +306,7 @@ Additional RLS policies have been added to allow recruiters to view candidate pr
 CREATE POLICY "Recruiters can view all candidate profiles"
   ON public.profiles FOR SELECT
   USING (
-    (auth.uid() IN (SELECT id FROM public.profiles WHERE role = 'recruiter') 
+    (auth.uid() IN (SELECT id FROM public.profiles WHERE role = 'recruiter')
      AND role = 'candidate')
     OR auth.uid() = id
   );
@@ -315,6 +315,7 @@ CREATE POLICY "Recruiters can view all candidate profiles"
 ### Resume Storage Setup
 
 1. Create a private bucket called "resumes" in Supabase Storage:
+
    - Go to Storage in the Supabase dashboard
    - Click "Create a new bucket"
    - Name it "resumes"
@@ -327,7 +328,7 @@ CREATE POLICY "Recruiters can view all candidate profiles"
 CREATE POLICY "Users can upload their own resumes"
   ON storage.objects FOR INSERT
   WITH CHECK (
-    bucket_id = 'resumes' AND 
+    bucket_id = 'resumes' AND
     auth.uid()::text = (storage.foldername(name))[1]
   );
 
@@ -384,10 +385,12 @@ ADD COLUMN qdrant_point_id TEXT;
 The implementation flow:
 
 1. **PDF Text Extraction**:
+
    - When a candidate uploads a resume, extract the text content
    - This can be done client-side using libraries like `pdf-parse` or through a serverless function
 
 2. **Generate Embeddings**:
+
    - Send the extracted text to OpenAI's embedding API
    - Use the `text-embedding-ada-002` model (1536 dimensions)
 
@@ -396,65 +399,69 @@ The implementation flow:
    const response = await openai.embeddings.create({
      model: "text-embedding-ada-002",
      input: resumeText,
-   });
-   const embedding = response.data[0].embedding;
+   })
+   const embedding = response.data[0].embedding
    ```
 
 3. **Store in Qdrant**:
+
    - Create a point in Qdrant with the embedding and metadata
    - Store the Qdrant point ID in the Supabase profiles table
-   
+
    ```typescript
    // Example code for storing in Qdrant
-   const qdrantClient = new QdrantClient({ url: process.env.QDRANT_URL });
-   
+   const qdrantClient = new QdrantClient({ url: process.env.QDRANT_URL })
+
    // Create a point in Qdrant
-   const pointId = uuidv4(); // Generate a unique ID
+   const pointId = uuidv4() // Generate a unique ID
    await qdrantClient.upsert("resumes", {
-     points: [{
-       id: pointId,
-       vector: embedding,
-       payload: {
-         userId: userId,
-         resumeText: resumeText,
-         resumeUrl: resumeUrl
-       }
-     }]
-   });
-   
+     points: [
+       {
+         id: pointId,
+         vector: embedding,
+         payload: {
+           userId: userId,
+           resumeText: resumeText,
+           resumeUrl: resumeUrl,
+         },
+       },
+     ],
+   })
+
    // Store the Qdrant point ID in Supabase
    await supabase
-     .from('profiles')
-     .update({ 
+     .from("profiles")
+     .update({
        resume_text: resumeText,
        resume_url: resumeUrl,
-       qdrant_point_id: pointId
+       qdrant_point_id: pointId,
      })
-     .eq('id', userId);
+     .eq("id", userId)
    ```
 
 4. **Perform Vector Similarity Search**:
+
    - When a recruiter searches for candidates, convert their query to an embedding
    - Find the most similar resume embeddings using Qdrant
 
    ```typescript
    // Example code for searching in Qdrant
-   const queryEmbedding = await getEmbedding(queryText);
-   
+   const queryEmbedding = await getEmbedding(queryText)
+
    const searchResult = await qdrantClient.search("resumes", {
      vector: queryEmbedding,
      limit: 10,
-   });
-   
+   })
+
    // Get the user IDs from the search results
-   const userIds = searchResult.map(result => result.payload.userId);
-   
+   const userIds = searchResult.map((result) => result.payload.userId)
+
    // Fetch the full profiles from Supabase
    const { data: candidates } = await supabase
-     .from('profiles')
-     .select('*')
-     .in('id', userIds)
-     .eq('role', 'candidate');
+     .from("profiles")
+     .select("*")
+     .in("id", userIds)
+     .eq("role", "candidate")
    ```
 
 5. **Join Results with Profiles**:
@@ -468,19 +475,21 @@ Instead of using pgvector in Supabase, we're implementing a hybrid approach usin
 ### Setting Up Qdrant
 
 1. **Deploy Qdrant**:
+
    - You can use Qdrant Cloud (managed service)
    - Alternatively, deploy with Docker: `docker run -p 6333:6333 qdrant/qdrant`
 
 2. **Create a Collection**:
+
    ```typescript
-   const qdrantClient = new QdrantClient({ url: process.env.QDRANT_URL });
-   
+   const qdrantClient = new QdrantClient({ url: process.env.QDRANT_URL })
+
    await qdrantClient.createCollection("resumes", {
      vectors: {
        size: 1536, // For OpenAI embeddings
-       distance: "Cosine"
-     }
-   });
+       distance: "Cosine",
+     },
+   })
    ```
 
 3. **Configure Environment Variables**:
@@ -501,10 +510,12 @@ Instead of using pgvector in Supabase, we're implementing a hybrid approach usin
 To maintain consistency between Supabase and Qdrant:
 
 1. **On Profile Creation/Update**:
+
    - When a candidate uploads a resume, process and store it in both systems
    - Save the Qdrant point ID in Supabase for reference
 
 2. **On Profile Deletion**:
+
    - Delete the corresponding vector in Qdrant when a profile is removed
    - Use database triggers or application logic to ensure consistency
 
@@ -517,23 +528,20 @@ To maintain consistency between Supabase and Qdrant:
 Qdrant integrates well with LangChain for advanced RAG (Retrieval Augmented Generation) scenarios:
 
 ```typescript
-import { QdrantVectorStore } from "langchain/vectorstores/qdrant";
-import { OpenAIEmbeddings } from "langchain/embeddings/openai";
+import { QdrantVectorStore } from "langchain/vectorstores/qdrant"
+import { OpenAIEmbeddings } from "langchain/embeddings/openai"
 
 // Initialize vector store
-const vectorStore = new QdrantVectorStore(
-  new OpenAIEmbeddings(),
-  {
-    url: process.env.QDRANT_URL,
-    collectionName: "resumes"
-  }
-);
+const vectorStore = new QdrantVectorStore(new OpenAIEmbeddings(), {
+  url: process.env.QDRANT_URL,
+  collectionName: "resumes",
+})
 
 // Search for similar resumes
 const results = await vectorStore.similaritySearch(
-  "experienced frontend developer with React", 
+  "experienced frontend developer with React",
   5
-);
+)
 ```
 
 ## Implementation Guide: Integrating Qdrant with Supabase
@@ -559,6 +567,7 @@ docker run -d -p 6333:6333 -p 6334:6334 \
 ### 2. Install Required Dependencies
 
 Required packages:
+
 - `@qdrant/js-client-rest` - Official Qdrant JavaScript client
 - `openai` - OpenAI API client for generating embeddings
 - `pdf-parse` - For extracting text from PDF resumes
@@ -622,11 +631,94 @@ QDRANT_URL=your-qdrant-url
 QDRANT_API_KEY=your-qdrant-api-key  # Only needed for Qdrant Cloud
 ```
 
+## Implementation Status
+
+The following components have been implemented for the Qdrant integration:
+
+### Implemented: Qdrant Utility Module
+
+A comprehensive utility module has been created in `src/utils/qdrant.ts` with the following functionality:
+
+1. **Client Initialization**:
+
+   - Configures Qdrant client using environment variables
+   - Sets up OpenAI client for embedding generation
+
+2. **Collection Management**:
+
+   - `initializeCollection()`: Creates and configures the 'resumes' collection if it doesn't exist
+   - Configured with appropriate vector dimensions (1536) for OpenAI embeddings
+   - Uses cosine similarity for optimal semantic matching
+
+3. **PDF Processing**:
+
+   - `extractTextFromPdf(pdfBuffer)`: Extracts text content from uploaded PDF resumes
+   - Handles PDF parsing with proper error handling
+
+4. **Embedding Generation**:
+
+   - `generateEmbedding(text)`: Creates vector embeddings from text using OpenAI
+   - Uses the 'text-embedding-ada-002' model for optimal semantic representation
+
+5. **Resume Storage**:
+
+   - `storeResume(userId, resumeText, resumeUrl)`: Stores resume vectors in Qdrant
+   - Generates a unique point ID that gets stored in Supabase for reference
+   - Includes metadata in the payload for easier retrieval
+
+6. **Semantic Search**:
+
+   - `searchResumes(query, limit)`: Performs similarity search in Qdrant
+   - Converts search queries to embeddings for semantic matching
+   - Returns user IDs with similarity scores for integration with Supabase
+
+7. **Cleanup**:
+
+   - `deleteResume(pointId)`: Removes vectors from Qdrant when resumes are updated/deleted
+   - Ensures consistency between Supabase and Qdrant
+
+8. **LangChain Integration**:
+   - Placeholder for potential LangChain integration for more advanced RAG functionality
+
+### Dependencies Installed
+
+The following packages have been installed to support the Qdrant integration:
+
+```bash
+@qdrant/js-client-rest  # Official Qdrant client
+openai                  # OpenAI API client
+pdf-parse               # PDF text extraction
+uuid                    # Unique ID generation
+@types/uuid             # TypeScript types for UUID
+@types/pdf-parse        # TypeScript types for pdf-parse
+@types/node             # Node.js type definitions
+```
+
+### Pending Implementation
+
+The following components are pending implementation:
+
+1. API Endpoints:
+
+   - Resume upload endpoint
+   - Candidate search endpoint
+
+2. Frontend Components:
+
+   - Resume upload form for candidates
+   - Search interface for recruiters
+   - Candidate profile display
+
+3. Integration Testing:
+   - End-to-end testing of the resume upload and search flow
+   - Performance testing of semantic search capabilities
+
 ### Understanding the Role-Based System
 
 The hiring platform has two types of users:
 
 1. **Candidates**:
+
    - Have `role = 'candidate'` in their profile
    - Can upload resumes and add professional links
    - Can only see and edit their own profile

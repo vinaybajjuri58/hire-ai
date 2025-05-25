@@ -118,35 +118,55 @@ export async function storeResume(
   }
 }
 
-// Search for similar resumes
+const CONTROLLER_TIMEOUT_MS = 7000 // Max 7s timeout for the entire operation
+
 export async function searchResumes(
   query: string,
   limit: number = 10
 ): Promise<{ userId: string; similarity: number }[]> {
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), CONTROLLER_TIMEOUT_MS)
+
   try {
+    if (!query.trim()) return []
+
+    // Ensure collection is ready (consider memoizing this elsewhere)
     await initializeCollection()
 
-    // Generate embedding for the query
+    // Generate embedding
     const queryEmbedding = await generateEmbedding(query)
 
-    // Search in Qdrant
+    if (!Array.isArray(queryEmbedding) || queryEmbedding.length === 0) {
+      console.warn("Empty embedding generated.")
+      return []
+    }
+
+    // Vector search with timeout controller
     const searchResults = await qdrantClient.search("resumes", {
       vector: queryEmbedding,
-      limit: limit,
-      with_payload: true,
+      limit,
+      with_payload: false,
+      timeout: CONTROLLER_TIMEOUT_MS,
     })
 
-    console.log("Qdrant search raw results:", searchResults)
-
-    // Format results - use point ID as userId since we're storing userId as pointId
     return searchResults.map((result) => ({
-      userId: result.id as string, // Use the point ID instead of payload.userId
-      similarity: result.score,
+      userId: String(result.id),
+      similarity: result.score ?? 0,
     }))
-  } catch (error) {
-    console.error("Error searching resumes:", error)
-    // Return empty array instead of throwing to gracefully handle search failures
+  } catch (error: unknown) {
+    if (
+      typeof error === "object" &&
+      error !== null &&
+      "name" in error &&
+      (error as { name?: unknown }).name === "AbortError"
+    ) {
+      console.error("searchResumes timed out.")
+    } else {
+      console.error("Qdrant searchResumes error:", error)
+    }
     return []
+  } finally {
+    clearTimeout(timeout)
   }
 }
 
@@ -162,17 +182,5 @@ export async function deleteResume(pointId: string): Promise<void> {
     throw new Error(
       `Failed to delete resume from vector database: ${errorMessage}`
     )
-  }
-}
-
-// Optional: LangChain integration for more advanced RAG scenarios
-export async function initializeLangChainVectorStore() {
-  try {
-    // This would integrate with LangChain if needed
-    // Example code would be added here
-    console.log("LangChain integration is available but not currently used")
-  } catch (error) {
-    console.error("Error initializing LangChain integration:", error)
-    throw error
   }
 }

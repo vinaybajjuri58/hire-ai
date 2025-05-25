@@ -455,11 +455,6 @@ export async function sendMessage(
         messages: [
           {
             role: "system",
-            content:
-              "You are a helpful assistant for recruiter candidate search.",
-          },
-          {
-            role: "user",
             content: prompt,
           },
         ],

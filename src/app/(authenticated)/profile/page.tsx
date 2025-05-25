@@ -13,6 +13,8 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { useProfile } from "@/hooks/useProfile"
 import { LoadingIndicator } from "@/components/ui/loading-indicator"
 import { ErrorMessage } from "@/components/ui/error-message"
+import { ProfileForm } from "@/components/ProfileForm"
+import { ResumeUpload } from "@/components/ResumeUpload"
 
 export default function ProfilePage() {
   const { profile, isLoading, error } = useProfile()
@@ -43,69 +45,8 @@ export default function ProfilePage() {
           </div>
         ) : (
           <div className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Personal Information</CardTitle>
-                <CardDescription>
-                  Your basic profile information - will be visible to recruiters
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <p className="text-muted-foreground mb-4">
-                  Profile form will be implemented in Phase 3
-                </p>
-                <p className="font-medium">Current values:</p>
-                <ul className="mt-2 space-y-1 text-sm">
-                  <li>
-                    <span className="font-medium">Name:</span> {profile?.name}
-                  </li>
-                  <li>
-                    <span className="font-medium">Email:</span> {profile?.email}
-                  </li>
-                  <li>
-                    <span className="font-medium">GitHub:</span>{" "}
-                    {profile?.github || "Not set"}
-                  </li>
-                  <li>
-                    <span className="font-medium">LinkedIn:</span>{" "}
-                    {profile?.linkedin || "Not set"}
-                  </li>
-                  <li>
-                    <span className="font-medium">Twitter:</span>{" "}
-                    {profile?.twitter || "Not set"}
-                  </li>
-                </ul>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Resume Management</CardTitle>
-                <CardDescription>
-                  Upload your resume to help recruiters find you
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <p className="text-muted-foreground">
-                  Resume upload will be implemented in Phase 3
-                </p>
-                <p className="mt-2">
-                  <span className="font-medium">Current resume:</span>{" "}
-                  {profile?.resume_url ? (
-                    <a
-                      href={profile.resume_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-primary hover:underline"
-                    >
-                      View Resume
-                    </a>
-                  ) : (
-                    "No resume uploaded"
-                  )}
-                </p>
-              </CardContent>
-            </Card>
+            <ProfileForm />
+            <ResumeUpload />
           </div>
         )}
       </div>

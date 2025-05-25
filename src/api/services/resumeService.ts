@@ -1,7 +1,7 @@
 import { createClient } from "@/utils/supabase/server"
 import { TApiResponse, UserRole } from "@/types"
 import {
-  extractTextFromPdf,
+  extractTextFromPdfUrl,
   storeResume,
   searchResumes,
   deleteResume,
@@ -45,86 +45,124 @@ export async function processResume(
       }
     }
 
-    // Extract text from PDF
-    try {
-      const resumeText = await extractTextFromPdf(file)
+    // 1. Upload file to Supabase Storage
+    const timestamp = Date.now()
+    const storagePath = `${userId}/${timestamp}_${fileName}`
+    console.log(
+      `[ResumeUpload] Attempting upload: fileName=${fileName}, storagePath=${storagePath}, fileType=${fileType}, fileSize=${file?.length}`
+    )
+    const { error: uploadError, data: uploadData } = await supabase.storage
+      .from("resumes")
+      .upload(storagePath, file, {
+        contentType: fileType,
+        upsert: true,
+      })
+    console.log(
+      `[ResumeUpload] Upload result: error=${uploadError ? uploadError.message : "none"}, data=${JSON.stringify(uploadData)}`
+    )
 
-      // Validate that the PDF has enough content
-      if (!resumeText || resumeText.trim().length < 50) {
-        return {
-          error:
-            "The resume appears to be empty or contains insufficient text content. Please upload a valid resume with meaningful content.",
-          status: 400,
-        }
-      }
-
-      // Upload file to Supabase Storage
-      const timestamp = Date.now()
-      const storagePath = `${userId}/${timestamp}_${fileName}`
-
-      const { error: uploadError } = await supabase.storage
-        .from("resumes")
-        .upload(storagePath, file, {
-          contentType: fileType,
-          upsert: true,
-        })
-
-      if (uploadError) {
-        return {
-          error: "Failed to upload resume file: " + uploadError.message,
-          status: 500,
-        }
-      }
-
-      // Get URL for the uploaded file
-      const { data: urlData } = supabase.storage
-        .from("resumes")
-        .getPublicUrl(storagePath)
-
-      const resumeUrl = urlData.publicUrl
-
-      // Store in Qdrant and get point ID
-      const qdrantPointId = await storeResume(userId, resumeText, resumeUrl)
-
-      // Update profile with resume info
-      const { error: updateError } = await supabase
-        .from("profiles")
-        .update({
-          resume_url: resumeUrl,
-          resume_text: resumeText,
-          qdrant_point_id: qdrantPointId,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", userId)
-
-      if (updateError) {
-        // Try to clean up the Qdrant vector if profile update fails
-        try {
-          await deleteResume(qdrantPointId)
-        } catch {
-          // Non-critical cleanup error
-        }
-
-        return {
-          error: "Failed to update profile with resume information",
-          status: 500,
-        }
-      }
-
+    if (uploadError) {
       return {
-        data: {
-          resumeUrl,
-          qdrantPointId,
-        },
-        status: 200,
-      }
-    } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : "Failed to process resume PDF"
-      return {
-        error: errorMessage,
+        error: "Failed to upload resume file: " + uploadError.message,
         status: 500,
       }
+    }
+
+    // 2. Get public URL for the uploaded file (for storing in profile)
+    const { data: urlData } = supabase.storage
+      .from("resumes")
+      .getPublicUrl(storagePath)
+    const resumeUrl = urlData.publicUrl
+    console.log(`[ResumeUpload] Public URL for uploaded file: ${resumeUrl}`)
+
+    // 3. Generate a signed URL for extraction (valid for 180 seconds)
+    const { data: signedUrlData, error: signedUrlError } =
+      await supabase.storage.from("resumes").createSignedUrl(storagePath, 180)
+    if (signedUrlError || !signedUrlData?.signedUrl) {
+      // Clean up uploaded file if signed URL generation fails
+      await supabase.storage.from("resumes").remove([storagePath])
+      return {
+        error: "Failed to generate signed URL for resume extraction",
+        status: 500,
+      }
+    }
+    const signedResumeUrl = signedUrlData.signedUrl
+    console.log(`[ResumeUpload] Signed URL for extraction: ${signedResumeUrl}`)
+
+    // 4. Extract text from the PDF at the signed URL
+    let resumeText: string
+    try {
+      resumeText = await extractTextFromPdfUrl(signedResumeUrl)
+    } catch (error) {
+      // Clean up uploaded file if extraction fails
+      await supabase.storage.from("resumes").remove([storagePath])
+      return {
+        error:
+          error instanceof Error
+            ? error.message
+            : "Failed to extract text from resume PDF",
+        status: 500,
+      }
+    }
+
+    // Validate that the PDF has enough content
+    if (!resumeText || resumeText.trim().length < 50) {
+      // Clean up uploaded file if resume is too short
+      await supabase.storage.from("resumes").remove([storagePath])
+      return {
+        error:
+          "The resume appears to be empty or contains insufficient text content. Please upload a valid resume with meaningful content.",
+        status: 400,
+      }
+    }
+
+    // 5. Store in Qdrant and get point ID
+    let qdrantPointId: string
+    try {
+      qdrantPointId = await storeResume(userId, resumeText, resumeUrl)
+    } catch (error) {
+      // Clean up uploaded file if Qdrant storage fails
+      await supabase.storage.from("resumes").remove([storagePath])
+      return {
+        error:
+          error instanceof Error
+            ? error.message
+            : "Failed to store resume in vector database",
+        status: 500,
+      }
+    }
+
+    // 6. Update profile with resume info
+    const { error: updateError } = await supabase
+      .from("profiles")
+      .update({
+        resume_url: resumeUrl,
+        resume_text: resumeText,
+        qdrant_point_id: qdrantPointId,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", userId)
+
+    if (updateError) {
+      // Try to clean up the Qdrant vector and uploaded file if profile update fails
+      try {
+        await deleteResume(qdrantPointId)
+      } catch {
+        // Non-critical cleanup error
+      }
+      await supabase.storage.from("resumes").remove([storagePath])
+      return {
+        error: "Failed to update profile with resume information",
+        status: 500,
+      }
+    }
+
+    return {
+      data: {
+        resumeUrl,
+        qdrantPointId,
+      },
+      status: 200,
     }
   } catch (error) {
     console.error("Resume processing error:", error)

@@ -1,12 +1,6 @@
 "use client"
 
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card"
+import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import ClientLayout from "../client-layout"
 import { UserRole } from "@/types/api"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -17,7 +11,7 @@ import { ProfileForm } from "@/components/ProfileForm"
 import { ResumeUpload } from "@/components/ResumeUpload"
 
 export default function ProfilePage() {
-  const { profile, isLoading, error } = useProfile()
+  const { isLoading, error } = useProfile()
 
   return (
     <ClientLayout requiredRoles={[UserRole.Candidate]}>

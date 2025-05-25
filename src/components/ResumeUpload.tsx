@@ -45,7 +45,7 @@ export function ResumeUpload() {
           return new Date(timestamp)
         }
       }
-    } catch (e) {
+    } catch {
       // Silently fail and return null if parsing fails
     }
 

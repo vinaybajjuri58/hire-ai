@@ -1,7 +1,8 @@
 import { QdrantClient } from "@qdrant/js-client-rest"
 import { OpenAI } from "openai"
 import { v4 as uuidv4 } from "uuid"
-// Import pdf-parse dynamically to avoid build-time issues
+import axios from "axios"
+import pdfParse from "pdf-parse-debugging-disabled"
 
 // Initialize clients
 const qdrantClient = new QdrantClient({
@@ -36,18 +37,28 @@ export async function initializeCollection() {
   }
 }
 
-// Extract text from a PDF buffer
+// Extract text from a PDF buffer using pdf-parse
 export async function extractTextFromPdf(pdfBuffer: Buffer): Promise<string> {
   try {
-    // Only import pdf-parse when this function is actually called
-    // This prevents build-time errors related to test files
-    const pdfParse = await import("pdf-parse")
-    const data = await pdfParse.default(pdfBuffer)
+    const data = await pdfParse(pdfBuffer)
     return data.text
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error)
     console.error(`Error extracting text from PDF: ${errorMessage}`)
     throw new Error(`Failed to extract text from PDF: ${errorMessage}`)
+  }
+}
+
+// Extract text from a PDF at a given URL using pdf-parse
+export async function extractTextFromPdfUrl(pdfUrl: string): Promise<string> {
+  try {
+    const response = await axios.get(pdfUrl, { responseType: "arraybuffer" })
+    const buffer = Buffer.from(response.data)
+    return await extractTextFromPdf(buffer)
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error)
+    console.error(`Error extracting text from PDF URL: ${errorMessage}`)
+    throw new Error(`Failed to extract text from PDF URL: ${errorMessage}`)
   }
 }
 

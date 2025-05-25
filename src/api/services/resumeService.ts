@@ -68,12 +68,21 @@ export async function processResume(
       }
     }
 
-    // 2. Get public URL for the uploaded file (for storing in profile)
-    const { data: urlData } = supabase.storage
-      .from("resumes")
-      .getPublicUrl(storagePath)
-    const resumeUrl = urlData.publicUrl
-    console.log(`[ResumeUpload] Public URL for uploaded file: ${resumeUrl}`)
+    // 2. Generate a signed URL for the uploaded file (valid for 1 hour, for profile viewing)
+    const { data: signedUrlDataForProfile, error: signedUrlErrorForProfile } =
+      await supabase.storage
+        .from("resumes")
+        .createSignedUrl(storagePath, 60 * 60)
+    if (signedUrlErrorForProfile || !signedUrlDataForProfile?.signedUrl) {
+      // Clean up uploaded file if signed URL generation fails
+      await supabase.storage.from("resumes").remove([storagePath])
+      return {
+        error: "Failed to generate signed URL for resume viewing",
+        status: 500,
+      }
+    }
+    const resumeUrl = signedUrlDataForProfile.signedUrl
+    console.log(`[ResumeUpload] Signed URL for profile: ${resumeUrl}`)
 
     // 3. Generate a signed URL for extraction (valid for 180 seconds)
     const { data: signedUrlData, error: signedUrlError } =

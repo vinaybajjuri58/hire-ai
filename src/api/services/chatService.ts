@@ -35,7 +35,7 @@ Candidate profiles:
 []
 
 Output:
-
+There are no candidates that match you requirements on this platform.
 
 Example:
 Recruiter query: "Looking for a React developer with 3+ years experience."
@@ -46,6 +46,7 @@ Candidate profiles:
 ]
 
 Output:
+These are the top relevant candidates according to your requirements
 - [Alice Smith](https://example.com/alice)
 - [Bob Jones](https://example.com/bob)
 

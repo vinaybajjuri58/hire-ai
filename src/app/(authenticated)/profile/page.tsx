@@ -9,6 +9,7 @@ import { LoadingIndicator } from "@/components/ui/loading-indicator"
 import { ErrorMessage } from "@/components/ui/error-message"
 import { ProfileForm } from "@/components/ProfileForm"
 import { ResumeUpload } from "@/components/ResumeUpload"
+import { ResumeManagement } from "@/components/ResumeManagement"
 
 export default function ProfilePage() {
   const { isLoading, error } = useProfile()
@@ -40,6 +41,7 @@ export default function ProfilePage() {
         ) : (
           <div className="space-y-6">
             <ProfileForm />
+            <ResumeManagement />
             <ResumeUpload />
           </div>
         )}

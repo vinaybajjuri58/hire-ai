@@ -10,15 +10,7 @@ import {
   CardTitle,
   CardDescription,
 } from "@/components/ui/card"
-import {
-  AlertCircle,
-  Check,
-  File,
-  Loader2,
-  Upload,
-  ExternalLink,
-} from "lucide-react"
-import { formatDistanceToNow } from "date-fns"
+import { AlertCircle, Check, Loader2, Upload } from "lucide-react"
 
 // Maximum file size in bytes (5MB)
 const MAX_FILE_SIZE = 5 * 1024 * 1024
@@ -32,27 +24,8 @@ export function ResumeUpload() {
   const [success, setSuccess] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  // Extract upload timestamp from resume_url if available
-  const getUploadTime = () => {
-    if (!profile?.resume_url) return null
-
-    try {
-      // URL format is like: <timestamp>_filename.pdf
-      const match = profile.resume_url.match(/\/([0-9]+)_[^/]+$/)
-      if (match && match[1]) {
-        const timestamp = parseInt(match[1])
-        if (!isNaN(timestamp)) {
-          return new Date(timestamp)
-        }
-      }
-    } catch {
-      // Silently fail and return null if parsing fails
-    }
-
-    return null
-  }
-
-  const uploadTime = getUploadTime()
+  // Only render if no resume exists
+  if (profile?.resume_url) return null
 
   // Handle file selection
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -152,7 +125,7 @@ export function ResumeUpload() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Resume Management</CardTitle>
+        <CardTitle>Resume Upload</CardTitle>
         <CardDescription>
           Upload your resume to help recruiters find you
         </CardDescription>
@@ -171,37 +144,6 @@ export function ResumeUpload() {
           <div className="p-3 text-sm bg-primary/10 text-primary rounded-md flex items-center gap-2">
             <Check className="h-4 w-4" />
             Resume uploaded successfully!
-          </div>
-        )}
-
-        {/* Current resume section */}
-        {profile?.resume_url && (
-          <div className="p-4 border rounded-md bg-background">
-            <div className="flex items-start gap-3">
-              <div className="p-2 bg-primary/10 text-primary rounded-md">
-                <File className="h-6 w-6" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <h3 className="font-semibold">Current Resume</h3>
-                {uploadTime && (
-                  <p className="text-sm text-muted-foreground">
-                    Uploaded{" "}
-                    {formatDistanceToNow(uploadTime, { addSuffix: true })}
-                  </p>
-                )}
-                <div className="mt-2">
-                  <a
-                    href={profile.resume_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 text-sm text-primary hover:underline"
-                  >
-                    <ExternalLink className="h-3.5 w-3.5" />
-                    View Resume
-                  </a>
-                </div>
-              </div>
-            </div>
           </div>
         )}
 

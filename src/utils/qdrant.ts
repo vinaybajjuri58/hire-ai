@@ -1,6 +1,5 @@
 import { QdrantClient } from "@qdrant/js-client-rest"
 import { OpenAI } from "openai"
-import { v4 as uuidv4 } from "uuid"
 import axios from "axios"
 import pdfParse from "pdf-parse-debugging-disabled"
 
@@ -90,8 +89,8 @@ export async function storeResume(
     // Generate embedding for the resume text
     const embedding = await generateEmbedding(resumeText)
 
-    // Create a unique ID for the point
-    const pointId = uuidv4()
+    // Use userId as the point ID
+    const pointId = userId
 
     // Insert the point into Qdrant
     await qdrantClient.upsert("resumes", {
@@ -137,9 +136,11 @@ export async function searchResumes(
       with_payload: true,
     })
 
-    // Format results
+    console.log("Qdrant search raw results:", searchResults)
+
+    // Format results - use point ID as userId since we're storing userId as pointId
     return searchResults.map((result) => ({
-      userId: result.payload?.userId as string,
+      userId: result.id as string, // Use the point ID instead of payload.userId
       similarity: result.score,
     }))
   } catch (error) {

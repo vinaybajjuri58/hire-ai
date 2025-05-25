@@ -7,7 +7,6 @@ import {
   TMessageRole,
 } from "@/types"
 import OpenAI from "openai"
-import { ChatCompletionMessageParam } from "openai/resources"
 
 // Initialize OpenAI client with proper error handling
 const getOpenAIClient = () => {
@@ -26,6 +25,37 @@ const getOpenAIClient = () => {
 
 // Define a fallback model in case environment variable isn't set
 const DEFAULT_MODEL = "gpt-3.5-turbo"
+
+// Add prompt template for OpenAI shortlisting with few-shot example
+const PROMPT_TEMPLATE = `You are a helpful assistant for recruiter candidate search. You will be given a recruiter query and a list of candidate profiles. You must ONLY select candidates from the provided list. Do not use any information from previous messages or invent any candidates. If you cannot find 5, return as many as are present, but do not add any others.
+
+Example:
+Recruiter query: "Looking for a React developer with 3+ years experience."
+Candidate profiles:
+[]
+
+Output:
+
+
+Example:
+Recruiter query: "Looking for a React developer with 3+ years experience."
+Candidate profiles:
+[
+  {"name": "Alice Smith", "profile_link": "https://example.com/alice"},
+  {"name": "Bob Jones", "profile_link": "https://example.com/bob"}
+]
+
+Output:
+- [Alice Smith](https://example.com/alice)
+- [Bob Jones](https://example.com/bob)
+
+
+---
+
+Now, given the following recruiter query: "{query}"
+And the following list of candidate profiles:
+{candidates}
+Shortlist the top 5 most relevant candidates ONLY from the provided list. DO NOT add, invent, or include any candidates not present in the list. Return ONLY the names and profile links of the selected candidates in a markdown list. If you cannot find 5, return as many as are present, but do not add any others.`
 
 /**
  * Creates a new chat with the given title
@@ -270,170 +300,215 @@ export async function sendMessage(
       }
     }
 
-    try {
-      // Create a timestamp for consistency
-      const now = new Date().toISOString()
-
-      const { data: userMessageData, error: messageError } = await supabase
-        .from("chat_messages")
-        .insert({
-          chat_id: chatId,
-          content: message,
-          role: TMessageRole.User,
-          // Add any other required fields that might be missing
-          created_at: now,
-          // Remove updated_at as it doesn't exist in the table
-        })
-        .select("*")
-        .single()
-
-      if (messageError) {
-        return {
-          error: messageError?.message || "Failed to send message",
-          status: 500,
-        }
-      }
-
-      if (!userMessageData) {
-        return {
-          error: "Failed to save message to database",
-          status: 500,
-        }
-      }
-
-      try {
-        // Initialize OpenAI client
-        const openai = getOpenAIClient()
-        if (!openai) {
-          // Return the user message without attempting AI response
-          return {
-            data: {
-              id: userMessageData.id,
-              content: userMessageData.content,
-              role: userMessageData.role,
-              createdAt: userMessageData.created_at,
-              chatId: userMessageData.chat_id,
-            },
-            status: 201,
-          }
-        }
-
-        // Get chat history for context - using snake_case
-        const { data: chatHistory } = await supabase
-          .from("chat_messages")
-          .select("*")
-          .eq("chat_id", chatId)
-          .order("created_at", { ascending: true })
-          .limit(50) // Limit chat history to last 50 messages for token efficiency
-
-        // If chat history isn't available, just use the current message
-        const messageHistory = chatHistory || [
-          {
-            role: TMessageRole.User,
-            content: message,
-            id: userMessageData.id,
-            chat_id: chatId,
-            created_at: userMessageData.created_at,
-          },
-        ]
-
-        // Get model from environment variables or use default
-        const model = process.env.OPENAI_MODEL || DEFAULT_MODEL
-
-        // Generate AI response with specific error handling for OpenAI errors
-        try {
-          const messagesForAPI = [
-            {
-              role: "system",
-              content:
-                process.env.OPENAI_SYSTEM_PROMPT ||
-                "You are a helpful assistant.",
-            } as ChatCompletionMessageParam,
-            ...messageHistory.map(
-              (msg) =>
-                ({
-                  role: msg.role === TMessageRole.User ? "user" : "assistant",
-                  content: msg.content,
-                }) as ChatCompletionMessageParam
-            ),
-          ]
-
-          const completion = await openai.chat.completions.create({
-            model,
-            messages: messagesForAPI,
-            temperature: parseFloat(process.env.OPENAI_TEMPERATURE || "0.7"),
-            max_tokens: parseInt(process.env.OPENAI_MAX_TOKENS || "2000", 10),
-          })
-
-          const aiResponse = completion.choices[0]?.message?.content
-
-          if (!aiResponse) {
-            throw new Error("Empty response from AI model")
-          }
-
-          // Save AI response - using snake_case
-          const now = new Date().toISOString() // Timestamp for consistency
-
-          const { data: aiMessageData, error: aiMessageError } = await supabase
-            .from("chat_messages")
-            .insert({
-              chat_id: chatId,
-              content: aiResponse,
-              role: TMessageRole.Assistant,
-              created_at: now,
-            })
-            .select("*")
-            .single()
-
-          if (aiMessageError || !aiMessageData) {
-            throw new Error(
-              aiMessageError?.message || "Failed to save AI response"
-            )
-          }
-        } catch {
-          // Return the user message
-          return {
-            data: {
-              id: userMessageData.id,
-              content: userMessageData.content,
-              role: userMessageData.role,
-              createdAt: userMessageData.created_at,
-              chatId: userMessageData.chat_id,
-            },
-            status: 201,
-          }
-        }
-
-        // Update chat timestamp - using snake_case
-        await supabase
-          .from("chats")
-          .update({ updated_at: new Date().toISOString() })
-          .eq("id", chatId)
-      } catch {
-        // Still return the user message since it was saved
-        // This allows the client to show the user message even if AI failed
-      }
-
-      // Return the user message (AI message will be fetched separately if needed)
+    // Save the user message
+    const now = new Date().toISOString()
+    const { data: userMessageData, error: messageError } = await supabase
+      .from("chat_messages")
+      .insert({
+        chat_id: chatId,
+        content: message,
+        role: TMessageRole.User,
+        created_at: now,
+      })
+      .select("*")
+      .single()
+    if (messageError || !userMessageData) {
       return {
-        data: {
-          id: userMessageData.id,
-          content: userMessageData.content,
-          role: userMessageData.role,
-          createdAt: userMessageData.created_at,
-          chatId: userMessageData.chat_id,
-        },
-        status: 201,
-      }
-    } catch {
-      return {
-        error: "Failed to process message",
+        error: messageError?.message || "Failed to send message",
         status: 500,
       }
     }
+
+    // --- Recruiter candidate search and shortlisting logic ---
+    // 1. Qdrant similarity search for top 20 candidates
+    // 2. Fetch candidate profiles
+    // 3. Build OpenAI prompt and get shortlist
+    // 4. Save AI response as assistant message
+    try {
+      // Import searchResumes and createClient from qdrant/resumeService
+      const { searchResumes } = await import("@/utils/qdrant")
+      const { createClient: createSupabaseClient } = await import(
+        "@/utils/supabase/server"
+      )
+      const supabaseAdmin = await createSupabaseClient()
+
+      // 1. Qdrant search
+      const searchResults = await searchResumes(message, 20)
+      const userIds = searchResults.map((r) => r.userId)
+
+      if (!userIds.length) {
+        // No candidates found
+        const aiContent =
+          "No relevant candidates found for your query. Please try a different search."
+        await supabase.from("chat_messages").insert({
+          chat_id: chatId,
+          content: aiContent,
+          role: TMessageRole.Assistant,
+          created_at: new Date().toISOString(),
+        })
+        return {
+          data: {
+            id: userMessageData.id,
+            content: message,
+            role: userMessageData.role,
+            createdAt: userMessageData.created_at,
+            chatId: userMessageData.chat_id,
+          },
+          status: 201,
+        }
+      }
+
+      // 2. Fetch candidate profiles
+      // Change query to directly use id field instead of qdrant_point_id
+      const { data: candidateProfiles, error: candidatesError } =
+        await supabaseAdmin
+          .from("profiles")
+          .select("id, name, email, github, linkedin, twitter, resume_url")
+          .in("id", userIds)
+      // Remove role filter temporarily for debugging
+      // .eq("role", "candidate")
+
+      if (candidatesError) {
+        const aiContent =
+          "Error fetching candidate profiles: " + candidatesError.message
+        await supabase.from("chat_messages").insert({
+          chat_id: chatId,
+          content: aiContent,
+          role: TMessageRole.Assistant,
+          created_at: new Date().toISOString(),
+        })
+        return {
+          data: {
+            id: userMessageData.id,
+            content: message,
+            role: userMessageData.role,
+            createdAt: userMessageData.created_at,
+            chatId: userMessageData.chat_id,
+          },
+          status: 201,
+        }
+      }
+
+      if (!candidateProfiles || candidateProfiles.length === 0) {
+        // Found userIds but no matching profiles
+        const aiContent =
+          "No candidate profiles were found matching your search criteria. Please check that candidate profiles exist and have resumes uploaded."
+        await supabase.from("chat_messages").insert({
+          chat_id: chatId,
+          content: aiContent,
+          role: TMessageRole.Assistant,
+          created_at: new Date().toISOString(),
+        })
+        return {
+          data: {
+            id: userMessageData.id,
+            content: message,
+            role: userMessageData.role,
+            createdAt: userMessageData.created_at,
+            chatId: userMessageData.chat_id,
+          },
+          status: 201,
+        }
+      }
+
+      // 3. Build OpenAI prompt
+      // Format candidate profiles as JSON array for the prompt
+      const candidatesForPrompt = candidateProfiles.map((profile) => ({
+        name: profile.name,
+        email: profile.email,
+        github: profile.github,
+        linkedin: profile.linkedin,
+        twitter: profile.twitter,
+        profile_link: profile.resume_url || null,
+      }))
+      const prompt = PROMPT_TEMPLATE.replace("{query}", message).replace(
+        "{candidates}",
+        JSON.stringify(candidatesForPrompt, null, 2)
+      )
+
+      // 4. Call OpenAI to get shortlist
+      const openai = getOpenAIClient()
+      if (!openai) {
+        const aiContent =
+          "OpenAI API key is not configured. Please contact the administrator."
+        await supabase.from("chat_messages").insert({
+          chat_id: chatId,
+          content: aiContent,
+          role: TMessageRole.Assistant,
+          created_at: new Date().toISOString(),
+        })
+        return {
+          data: {
+            id: userMessageData.id,
+            content: message,
+            role: userMessageData.role,
+            createdAt: userMessageData.created_at,
+            chatId: userMessageData.chat_id,
+          },
+          status: 201,
+        }
+      }
+      const model = process.env.OPENAI_MODEL || DEFAULT_MODEL
+      const completion = await openai.chat.completions.create({
+        model,
+        messages: [
+          {
+            role: "system",
+            content:
+              "You are a helpful assistant for recruiter candidate search.",
+          },
+          {
+            role: "user",
+            content: prompt,
+          },
+        ],
+        temperature: parseFloat(process.env.OPENAI_TEMPERATURE || "0.7"),
+        max_tokens: parseInt(process.env.OPENAI_MAX_TOKENS || "2000", 10),
+      })
+      const aiResponse = completion.choices[0]?.message?.content
+      if (!aiResponse) {
+        throw new Error("Empty response from AI model")
+      }
+      // 5. Save AI response as assistant message
+      const { data: aiMessageData, error: aiMessageError } = await supabase
+        .from("chat_messages")
+        .insert({
+          chat_id: chatId,
+          content: aiResponse,
+          role: TMessageRole.Assistant,
+          created_at: new Date().toISOString(),
+        })
+        .select("*")
+        .single()
+      if (aiMessageError || !aiMessageData) {
+        throw new Error(aiMessageError?.message || "Failed to save AI response")
+      }
+    } catch {
+      // Save error as assistant message
+      const aiContent =
+        "Sorry, there was an error processing your request. Please try again later."
+      await supabase.from("chat_messages").insert({
+        chat_id: chatId,
+        content: aiContent,
+        role: TMessageRole.Assistant,
+        created_at: new Date().toISOString(),
+      })
+    }
+
+    // Return the user message (the frontend will fetch the latest messages)
+    return {
+      data: {
+        id: userMessageData.id,
+        content: message,
+        role: userMessageData.role,
+        createdAt: userMessageData.created_at,
+        chatId: userMessageData.chat_id,
+      },
+      status: 201,
+    }
   } catch {
     return {
-      error: "Failed to process message",
+      error: "Failed to send message",
       status: 500,
     }
   }

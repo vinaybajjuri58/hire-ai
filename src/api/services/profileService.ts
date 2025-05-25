@@ -1,4 +1,3 @@
-import { createClient } from "@/utils/supabase/server"
 import { createAdminClient } from "@/utils/supabase/admin"
 import { TApiResponse, TUser, UserRole } from "@/types"
 

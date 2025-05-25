@@ -1,5 +1,7 @@
 # API Documentation: Hiring Platform
 
+> **Note:** Resume PDF extraction is performed server-side using the forked package `pdf-parse-debugging-disabled` (not the official `pdf-parse`). This avoids debug code issues in production. When a resume is uploaded, the backend extracts text, generates an OpenAI embedding, and stores the vector in Qdrant for semantic search. All errors are handled gracefully and type safety is enforced with TypeScript. See backend docs for architectural details and maintenance notes.
+
 This document provides comprehensive documentation for the API endpoints implemented in the hiring platform. The platform connects recruiters with candidates, leveraging Supabase for data storage and Qdrant for semantic search capabilities.
 
 ## Authentication
@@ -142,6 +144,12 @@ Searches for candidates using semantic search powered by Qdrant. Only available 
 
 Uploads a resume for the authenticated candidate.
 
+- The backend extracts text from the PDF using the forked `pdf-parse-debugging-disabled` package.
+- Generates an OpenAI embedding for the extracted text.
+- Stores the vector and metadata in Qdrant for semantic search.
+- Updates the user's profile in Supabase with the resume URL and Qdrant point ID.
+- If any step fails, a clear error message is returned.
+
 **Request Format:**
 
 - Content-Type: `multipart/form-data`
@@ -198,10 +206,15 @@ Key functions:
 Located at `src/api/services/resumeService.ts`, this service handles:
 
 - Resume upload and processing
-- PDF text extraction
+- **PDF text extraction using the forked `pdf-parse-debugging-disabled` package**
 - Vector embedding generation and storage in Qdrant
 - Semantic search using vector similarity
 - Resume deletion and cleanup
+- **Error handling:** All errors are logged and returned in a consistent format
+- **Type safety:** TypeScript is enforced throughout, with custom type declarations for the forked PDF parser
+
+> **Maintenance Note:**
+> If you update the PDF extraction logic, always test in a production-like environment. Do not use `pdf-parse@1.1.1` due to debug code issues. Update logic in `src/utils/qdrant.ts` as needed.
 
 Key functions:
 

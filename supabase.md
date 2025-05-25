@@ -362,6 +362,13 @@ CREATE POLICY "Users can delete their own resumes"
   );
 ```
 
+### PDF Extraction Implementation (Important)
+
+> **Note:**
+> We use the forked package `pdf-parse-debugging-disabled` for server-side PDF text extraction. The official `pdf-parse` package (v1.1.1) includes debug code that causes runtime errors in production/serverless environments. The forked version is a drop-in replacement with the debug code removed. TypeScript types are provided by `@types/pdf-parse` and a custom module declaration in `src/types/pdf-parse-debugging-disabled.d.ts`.
+>
+> **If you update or replace the PDF extraction logic, always test in a production-like environment.**
+
 ### File Upload Workflow
 
 The general workflow for resume handling is:
@@ -570,7 +577,7 @@ Required packages:
 
 - `@qdrant/js-client-rest` - Official Qdrant JavaScript client
 - `openai` - OpenAI API client for generating embeddings
-- `pdf-parse` - For extracting text from PDF resumes
+- `pdf-parse-debugging-disabled` - Forked PDF text extraction (do NOT use pdf-parse@1.1.1)
 - `uuid` - For generating unique IDs for Qdrant points
 
 ### 3. Create a Qdrant Service
@@ -590,10 +597,15 @@ Implement an API route at `src/app/api/profile/resume/route.ts` that handles:
 
 - File upload form processing
 - Authentication and role verification
-- PDF text extraction
-- File storage in Supabase Storage
-- Embedding generation and storage in Qdrant
+- **PDF text extraction using the forked `pdf-parse-debugging-disabled` package** (see 'PDF Extraction Implementation (Important)' above for rationale)
+- File storage in Supabase Storage (private bucket, path: `resumes/{userId}/{filename}`)
+- Embedding generation and storage in Qdrant (using OpenAI's `text-embedding-ada-002` model)
 - Updating profile metadata in Supabase with resume info and Qdrant point ID
+- **Error handling:** If PDF extraction or embedding fails, the API returns a clear error message. All errors are logged for debugging.
+- **Type safety:** TypeScript is enforced throughout, with custom type declarations for the forked PDF parser.
+
+> **Maintenance Note:**
+> If you update the PDF extraction logic, always test in a production-like environment. Do not use `pdf-parse@1.1.1` due to debug code issues.
 
 ### 5. Create Resume Search API Endpoint
 
@@ -601,9 +613,13 @@ Implement an API route at `src/app/api/profile/search/route.ts` that handles:
 
 - Parsing search queries
 - Authentication and role verification (only recruiters)
-- Vector similarity search in Qdrant
+- **Vector similarity search in Qdrant** (converts query to embedding, finds similar resumes)
 - Fetching matching candidate profiles from Supabase
 - Combining and ranking results
+- **Error handling:** If Qdrant or embedding API fails, the API returns a clear error and logs details for debugging.
+
+> **Maintenance Note:**
+> All vector search logic is in `src/utils/qdrant.ts`. Update this module to change embedding models, vector DBs, or PDF extraction logic.
 
 ### 6. Add a Delete Resume Handler
 
@@ -687,7 +703,7 @@ The following packages have been installed to support the Qdrant integration:
 ```bash
 @qdrant/js-client-rest  # Official Qdrant client
 openai                  # OpenAI API client
-pdf-parse               # PDF text extraction
+pdf-parse-debugging-disabled # Forked PDF text extraction (do NOT use pdf-parse@1.1.1)
 uuid                    # Unique ID generation
 @types/uuid             # TypeScript types for UUID
 @types/pdf-parse        # TypeScript types for pdf-parse

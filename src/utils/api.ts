@@ -55,10 +55,11 @@ export async function fetchFromApi<T>(endpoint: string): Promise<T> {
 
 export async function postToApi<T, D = Record<string, unknown>>(
   endpoint: string,
-  data: D
+  data: D,
+  config?: Record<string, unknown>
 ): Promise<T> {
   try {
-    const response = await apiClient.post<T>(endpoint, data)
+    const response = await apiClient.post<T>(endpoint, data, config)
     return response.data
   } catch (error) {
     console.error("API error:", error)

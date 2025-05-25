@@ -11,6 +11,7 @@ import {
   CardDescription,
 } from "@/components/ui/card"
 import { AlertCircle, Check, Loader2, Upload } from "lucide-react"
+import { postToApi } from "@/utils/api"
 
 // Maximum file size in bytes (5MB)
 const MAX_FILE_SIZE = 5 * 1024 * 1024
@@ -72,51 +73,35 @@ export function ResumeUpload() {
       const formData = new FormData()
       formData.append("resume", file)
 
-      // Make API request with fetch to show progress
-      const xhr = new XMLHttpRequest()
-
-      xhr.upload.addEventListener("progress", (event) => {
-        if (event.lengthComputable) {
-          const progress = Math.round((event.loaded / event.total) * 100)
-          setUploadProgress(progress)
-        }
-      })
-
-      xhr.addEventListener("load", async () => {
-        if (xhr.status >= 200 && xhr.status < 300) {
-          setSuccess(true)
-          setFile(null)
-          if (fileInputRef.current) {
-            fileInputRef.current.value = ""
+      // Use postToApi for upload with progress
+      type UploadResponse = { resumeUrl: string; qdrantPointId: string }
+      await postToApi<UploadResponse, FormData>("/profile/resume", formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+        onUploadProgress: (progressEvent: ProgressEvent) => {
+          if (progressEvent.total) {
+            const progress = Math.round(
+              (progressEvent.loaded / progressEvent.total) * 100
+            )
+            setUploadProgress(progress)
           }
-          await refreshProfile()
-
-          // Clear success message after 3 seconds
-          setTimeout(() => {
-            setSuccess(false)
-          }, 3000)
-        } else {
-          try {
-            const response = JSON.parse(xhr.responseText)
-            setError(response.error || "Failed to upload resume")
-          } catch {
-            setError("Failed to upload resume")
-          }
-        }
-        setIsUploading(false)
-        setUploadProgress(0)
+        },
       })
 
-      xhr.addEventListener("error", () => {
-        setError("Network error occurred while uploading")
-        setIsUploading(false)
-        setUploadProgress(0)
-      })
-
-      xhr.open("POST", "/api/profile/resume")
-      xhr.send(formData)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to upload resume")
+      setSuccess(true)
+      setFile(null)
+      if (fileInputRef.current) {
+        fileInputRef.current.value = ""
+      }
+      await refreshProfile()
+      setTimeout(() => {
+        setSuccess(false)
+      }, 3000)
+      setIsUploading(false)
+      setUploadProgress(0)
+    } catch (err: unknown) {
+      let errorMsg = "Failed to upload resume"
+      if (err instanceof Error) errorMsg = err.message
+      setError(errorMsg)
       setIsUploading(false)
       setUploadProgress(0)
     }

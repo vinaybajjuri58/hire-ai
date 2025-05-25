@@ -295,9 +295,8 @@ export async function signup(
 }
 
 export async function signout(): Promise<TApiResponse<null>> {
-  const supabase = await createClient()
   try {
-    const { error: signOutError } = await supabase.auth.signOut()
+    const { error: signOutError } = await (await createClient()).auth.signOut()
 
     if (signOutError) {
       return {

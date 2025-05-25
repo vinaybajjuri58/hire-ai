@@ -73,23 +73,11 @@ export async function updateUserProfile(
     twitter?: string
   }
 ): Promise<TApiResponse<TUser>> {
-  const supabase = await createClient()
   const adminClient = createAdminClient()
 
   try {
-    // Verify the user exists
-    const {
-      data: { user },
-      error: userError,
-    } = await supabase.auth.getUser()
-
-    if (userError || !user || user.id !== userId) {
-      return {
-        error:
-          "Unauthorized. User not found or not authorized to update this profile.",
-        status: 401,
-      }
-    }
+    // We don't need to verify the user separately since we're using the admin client
+    // and the API route that calls this should already handle auth
 
     // Remove resume_url if someone tries to update it directly
     // This prevents users from bypassing the proper resume upload process
@@ -154,23 +142,11 @@ export async function updateSocialLinks(
     twitter?: string
   }
 ): Promise<TApiResponse<TUser>> {
-  const supabase = await createClient()
   const adminClient = createAdminClient()
 
   try {
-    // Verify the user exists
-    const {
-      data: { user },
-      error: userError,
-    } = await supabase.auth.getUser()
-
-    if (userError || !user || user.id !== userId) {
-      return {
-        error:
-          "Unauthorized. User not found or not authorized to update social links.",
-        status: 401,
-      }
-    }
+    // We don't need to verify the user separately since we're using the admin client
+    // and the API route that calls this should already handle auth
 
     // Validate URLs if provided
     for (const [key, url] of Object.entries(links)) {

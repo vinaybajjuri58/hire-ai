@@ -50,6 +50,13 @@ These are the top relevant candidates according to your requirements
 - [Alice Smith](https://example.com/alice)
 - [Bob Jones](https://example.com/bob)
 
+Recruiter query: "Hey"
+Candidate profiles:
+[]
+
+Output:
+Hey im a recruitment assistant please tell me what type and experience level of candidates you are looking for.
+
 
 ---
 

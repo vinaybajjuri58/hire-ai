@@ -1,9 +1,8 @@
 "use client"
 
 import Link from "next/link"
-import { LucideMessageSquare, LucidePlus } from "lucide-react"
+import { LucideMessageSquare } from "lucide-react"
 
-import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { cn } from "@/lib/utils"
 import { TChatListItem } from "@/types/chat"
@@ -13,7 +12,6 @@ type ChatSidebarProps = {
   loading?: boolean
   error?: string | null
   activeChatId?: string
-  onCreateChat?: () => void
   compact?: boolean
 }
 
@@ -22,7 +20,6 @@ export function ChatSidebar({
   loading = false,
   error = null,
   activeChatId,
-  onCreateChat,
   compact = false,
 }: ChatSidebarProps) {
   return (
@@ -32,23 +29,6 @@ export function ChatSidebar({
         compact ? "p-0" : "p-4 bg-muted/40"
       )}
     >
-      {!compact && (
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold">Chats</h2>
-          {onCreateChat && (
-            <Button
-              size="sm"
-              variant="outline"
-              className="flex items-center gap-1"
-              onClick={onCreateChat}
-            >
-              <LucidePlus className="h-4 w-4" />
-              New Chat
-            </Button>
-          )}
-        </div>
-      )}
-
       {loading ? (
         <div className="space-y-2">
           <Skeleton className="h-10 w-full" />

@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { LayoutDashboard, MessageSquare, PlusCircle } from "lucide-react"
+import { LayoutDashboard, MessageSquare, UserCircle } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 
@@ -18,18 +18,17 @@ import {
   SidebarRail,
 } from "@/components/ui/sidebar"
 import { Button } from "@/components/ui/button"
-import { useRouter } from "next/navigation"
-import { fetchFromApi, postToApi } from "@/utils/api"
+import { fetchFromApi } from "@/utils/api"
 import { TChatListItem } from "@/types/chat"
 import { useState, useEffect } from "react"
 import { cn } from "@/lib/utils"
+import { useProfile } from "@/hooks/useProfile"
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
-  const router = useRouter()
   const pathname = usePathname()
-  const [isCreating, setIsCreating] = useState(false)
   const [chats, setChats] = useState<TChatListItem[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const { profile, isCandidate, isRecruiter } = useProfile()
 
   // Extract the current chat ID from the path if we're on a chat page
   const currentChatId = pathname.startsWith("/chat/")
@@ -37,52 +36,23 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     : undefined
 
   useEffect(() => {
-    async function fetchChats() {
-      try {
-        setIsLoading(true)
-        const data = await fetchFromApi<{ data: TChatListItem[] }>("/chats")
-        setChats(data.data || [])
-      } catch (err) {
-        console.error("Error fetching chats:", err)
-      } finally {
-        setIsLoading(false)
-      }
+    // Only fetch chats for recruiters
+    if (isRecruiter) {
+      fetchChats()
+    } else {
+      setIsLoading(false)
     }
+  }, [isRecruiter])
 
-    fetchChats()
-  }, [])
-
-  async function handleCreateNewChat() {
+  async function fetchChats() {
     try {
-      setIsCreating(true)
-
-      // Generate a sequential title based on the number of existing chats
-      const chatNumber = chats.length + 1
-      const chatTitle = `Chat ${chatNumber}`
-
-      const data = await postToApi<{ data: { id: string } }, { title: string }>(
-        "/chats",
-        {
-          title: chatTitle,
-        }
-      )
-
-      // Update the local chats list with the new chat
-      const newChat = {
-        id: data.data.id,
-        title: chatTitle,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      }
-
-      setChats([newChat, ...chats])
-
-      // Navigate to the new chat
-      router.push(`/chat/${data.data.id}`)
+      setIsLoading(true)
+      const data = await fetchFromApi<{ data: TChatListItem[] }>("/chats")
+      setChats(data.data || [])
     } catch (err) {
-      console.error("Error creating new chat:", err)
+      console.error("Error fetching chats:", err)
     } finally {
-      setIsCreating(false)
+      setIsLoading(false)
     }
   }
 
@@ -97,7 +67,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                   <LayoutDashboard className="size-4" />
                 </div>
                 <div className="flex flex-col gap-0.5 leading-none">
-                  <span className="font-medium">AI Chat App</span>
+                  <span className="font-medium">AI Hiring Platform</span>
                   <span className="text-xs">Dashboard</span>
                 </div>
               </a>
@@ -106,52 +76,55 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         </SidebarMenu>
       </SidebarHeader>
       <SidebarContent>
-        <div className="px-3 py-2">
-          <Button
-            variant="secondary"
-            className="w-full justify-start"
-            onClick={handleCreateNewChat}
-            disabled={isCreating}
-          >
-            <PlusCircle className="mr-2 h-4 w-4" />
-            {isCreating ? "Creating..." : "New Chat"}
-          </Button>
-        </div>
-
-        <div className="mt-2 px-2">
-          <div className="text-xs font-medium text-muted-foreground px-3 py-1">
-            Your Chats
+        {/* Candidate-specific navigation */}
+        {isCandidate && (
+          <div className="px-3 py-2">
+            <Link href="/profile">
+              <Button variant="secondary" className="w-full justify-start">
+                <UserCircle className="mr-2 h-4 w-4" />
+                Profile
+              </Button>
+            </Link>
           </div>
+        )}
 
-          {isLoading ? (
-            <div className="px-3 py-2 text-sm text-muted-foreground">
-              Loading...
+        {/* Recruiter-specific navigation */}
+        {isRecruiter && (
+          <>
+            <div className="mt-2 px-2">
+              <div className="text-xs font-medium text-muted-foreground px-3 py-1">
+                Your Chat
+              </div>
+
+              {isLoading ? (
+                <div className="px-3 py-2 text-sm text-muted-foreground">
+                  Loading...
+                </div>
+              ) : chats.length === 0 ? (
+                <div className="px-3 py-2 text-sm text-muted-foreground">
+                  No chat yet
+                </div>
+              ) : (
+                <div className="space-y-1">
+                  <Link
+                    key={chats[0].id}
+                    href={`/chat/${chats[0].id}`}
+                    className={cn(
+                      "flex items-center gap-2 px-3 py-2 text-sm rounded-md transition-colors",
+                      "hover:bg-muted",
+                      currentChatId === chats[0].id
+                        ? "bg-muted font-medium"
+                        : "text-muted-foreground"
+                    )}
+                  >
+                    <MessageSquare className="h-4 w-4" />
+                    <span className="truncate">{chats[0].title}</span>
+                  </Link>
+                </div>
+              )}
             </div>
-          ) : chats.length === 0 ? (
-            <div className="px-3 py-2 text-sm text-muted-foreground">
-              No chats yet
-            </div>
-          ) : (
-            <div className="space-y-1">
-              {chats.map((chat) => (
-                <Link
-                  key={chat.id}
-                  href={`/chat/${chat.id}`}
-                  className={cn(
-                    "flex items-center gap-2 px-3 py-2 text-sm rounded-md transition-colors",
-                    "hover:bg-muted",
-                    currentChatId === chat.id
-                      ? "bg-muted font-medium"
-                      : "text-muted-foreground"
-                  )}
-                >
-                  <MessageSquare className="h-4 w-4" />
-                  <span className="truncate">{chat.title}</span>
-                </Link>
-              ))}
-            </div>
-          )}
-        </div>
+          </>
+        )}
       </SidebarContent>
       <SidebarFooter>
         <div className="border-t p-4">
@@ -159,6 +132,15 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             <span className="text-sm font-medium">Theme</span>
             <ThemeToggle />
           </div>
+          {profile && (
+            <div className="text-sm text-muted-foreground mb-4">
+              <div className="font-medium">{profile.name}</div>
+              <div>{profile.email}</div>
+              <div className="mt-1 text-xs">
+                Role: {profile.role || "Not set"}
+              </div>
+            </div>
+          )}
           <SignOutButton className="w-full justify-start" />
         </div>
       </SidebarFooter>

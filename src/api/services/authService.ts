@@ -5,43 +5,53 @@ import {
   TAuthResponse,
   TLoginRequest,
   TSignupRequest,
+  UserRole,
 } from "@/types"
-
-// Helper function to wait for a specified time
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
 export async function login(
   credentials: TLoginRequest
 ): Promise<TApiResponse<TAuthResponse>> {
   const supabase = await createClient()
+  const adminClient = createAdminClient()
+
   try {
-    // Check if the email exists in the profiles table
-    const { data: profileCheck, error: profileCheckError } = await supabase
-      .from("profiles")
-      .select("id")
-      .eq("email", credentials.email)
-      .maybeSingle()
-
-    // If no profile found with this email, suggest signing up
-    if (!profileCheckError && !profileCheck) {
-      return {
-        error: "This email is not registered. Please sign up first.",
-        status: 404, // Not Found status code
-      }
-    }
-
-    // Authenticate the user - Supabase allows login even with unverified emails by default
-    const { data, error } = await supabase.auth.signInWithPassword({
+    // First, just try to authenticate - most reliable method
+    const authResponse = await supabase.auth.signInWithPassword({
       email: credentials.email,
       password: credentials.password,
     })
 
-    if (error) {
+    // If invalid credentials or user not found
+    if (authResponse.error) {
+      // If error suggests user doesn't exist, provide a clearer message
+      if (authResponse.error.message?.includes("Invalid login credentials")) {
+        // Use the profiles table with admin client to check if user exists
+        // This bypasses RLS restrictions
+        const { data: profileCheck } = await adminClient
+          .from("profiles")
+          .select("id")
+          .eq("email", credentials.email)
+          .maybeSingle()
+
+        if (!profileCheck) {
+          return {
+            error: "This email is not registered. Please sign up first.",
+            status: 404,
+          }
+        } else {
+          // User exists but password is wrong
+          return {
+            error: "Invalid password. Please try again.",
+            status: 401,
+          }
+        }
+      }
+
       // Check if the error is related to email verification
       if (
-        error.message?.includes("Email not confirmed") ||
-        error.message?.includes("Email verification required") ||
-        error.code === "email_not_confirmed"
+        authResponse.error.message?.includes("Email not confirmed") ||
+        authResponse.error.message?.includes("Email verification required") ||
+        authResponse.error.code === "email_not_confirmed"
       ) {
         return {
           error:
@@ -49,16 +59,18 @@ export async function login(
           status: 403,
           emailVerificationRequired: true,
         }
-      } else {
-        // For any other errors, return the error
-        return {
-          error: error.message,
-          status: 401,
-        }
+      }
+
+      // For any other errors, return the error
+      return {
+        error: authResponse.error.message,
+        status: 401,
       }
     }
 
-    // If no error and we have data, proceed normally
+    const data = authResponse.data
+
+    // If no data returned (shouldn't happen with successful auth)
     if (!data || !data.user) {
       return {
         error: "Authentication failed. Please check your credentials.",
@@ -66,8 +78,9 @@ export async function login(
       }
     }
 
-    // Get user data from profiles table
-    const { data: userData, error: userError } = await supabase
+    // Use admin client to bypass RLS policies when fetching the profile
+    // This prevents infinite recursion errors in RLS policies
+    const { data: userData, error: userError } = await adminClient
       .from("profiles")
       .select("*")
       .eq("id", data.user.id)
@@ -75,15 +88,19 @@ export async function login(
 
     // If profile not found, create one
     if (userError) {
+      console.error("User error:", userError)
       if (userError.code === "PGRST116") {
         // Create a basic profile for the user
-        const { error: insertError } = await supabase.from("profiles").insert({
-          id: data.user.id,
-          email: data.user.email,
-          name: data.user.user_metadata?.name || "",
-          updated_at: new Date().toISOString(),
-          created_at: new Date().toISOString(),
-        })
+        const { error: insertError } = await adminClient
+          .from("profiles")
+          .insert({
+            id: data.user.id,
+            email: data.user.email,
+            name: data.user.user_metadata?.name || "",
+            role: UserRole.Candidate, // Use enum instead of string
+            updated_at: new Date().toISOString(),
+            created_at: new Date().toISOString(),
+          })
 
         if (insertError) {
           return {
@@ -100,6 +117,7 @@ export async function login(
               name: data.user.user_metadata?.name || "",
               email: data.user.email || "",
               createdAt: new Date().toISOString(),
+              role: UserRole.Candidate, // Use enum instead of string
             },
             token: data.session?.access_token,
             emailVerified: false,
@@ -109,7 +127,7 @@ export async function login(
       }
 
       return {
-        error: "Failed to retrieve user information",
+        error: "Failed to retrieve user information: " + userError.message,
         status: 500,
       }
     }
@@ -122,6 +140,11 @@ export async function login(
           name: userData.name || "",
           email: userData.email,
           createdAt: userData.created_at,
+          role: userData.role,
+          github: userData.github || "",
+          linkedin: userData.linkedin || "",
+          twitter: userData.twitter || "",
+          resume_url: userData.resume_url || "",
         },
         token: data.session?.access_token,
         emailVerified: true,
@@ -131,7 +154,7 @@ export async function login(
   } catch (error) {
     console.error("Login error:", error)
     return {
-      error: "Authentication failed",
+      error: "Authentication failed. Server error occurred.",
       status: 500,
     }
   }
@@ -140,11 +163,11 @@ export async function login(
 export async function signup(
   userData: TSignupRequest
 ): Promise<TApiResponse<TAuthResponse>> {
-  const supabase = await createClient()
+  const adminClient = createAdminClient()
 
   try {
-    // Check if user already exists
-    const { data: existingUser, error: checkError } = await supabase
+    // Check if user already exists - using admin client to bypass RLS
+    const { data: existingUser, error: checkError } = await adminClient
       .from("profiles")
       .select("id")
       .eq("email", userData.email)
@@ -163,7 +186,6 @@ export async function signup(
     }
 
     // Register the user with Supabase Auth
-    const adminClient = createAdminClient()
     const { data: authData, error: authError } =
       await adminClient.auth.admin.createUser({
         email: userData.email,
@@ -204,49 +226,33 @@ export async function signup(
       }
     }
 
-    // Manually trigger the verification email since we're using the admin API
-    try {
-      const userEmail = authData.user.email
-      if (!userEmail) {
-        throw new Error("User email is missing")
-      }
+    // Instead of relying on a trigger, create the profile directly with admin client
+    // This ensures we bypass any RLS policies that might cause recursion
+    const { error: profileError } = await adminClient.from("profiles").insert({
+      id: authData.user.id,
+      email: userData.email,
+      name: userData.name,
+      role: userData.role || UserRole.Candidate,
+      updated_at: new Date().toISOString(),
+      created_at: new Date().toISOString(),
+    })
 
-      // Use localhost for development if NEXT_PUBLIC_SITE_URL is not set
-      const siteUrl =
-        process.env.NEXT_PUBLIC_SITE_URL ||
-        "https://chat-template-ten.vercel.app/"
-
-      const { error } = await supabase.auth.resend({
-        type: "signup",
-        email: userEmail,
-        options: {
-          emailRedirectTo: `${siteUrl}/auth/confirm`,
-        },
-      })
-
-      if (error) {
-        // Non-critical error, we still proceed with signup
-      }
-    } catch {
-      // Non-critical error, we still proceed with signup
+    if (profileError) {
+      console.error("Error creating profile:", profileError)
     }
 
-    // Use Supabase's built-in trigger to create the profile
-    // The trigger we created will automatically create a profile record
-    // Just wait a moment to make sure it's created
-    await sleep(1000)
-
-    // Try to update the name in the profile
-    const { error: updateError } = await supabase
+    // Try to update the profile with name and role - using admin client
+    const { error: updateError } = await adminClient
       .from("profiles")
       .update({
         name: userData.name,
+        role: userData.role || UserRole.Candidate, // Use enum instead of string
         updated_at: new Date().toISOString(),
       })
       .eq("id", authData.user.id)
 
     if (updateError) {
-      // Non-critical error, we can still proceed
+      console.error("Error updating profile:", updateError)
     }
 
     // Return success but without a token - they need to verify email first
@@ -257,6 +263,7 @@ export async function signup(
           name: userData.name,
           email: userData.email,
           createdAt: new Date().toISOString(),
+          role: userData.role || UserRole.Candidate, // Use enum instead of string
         },
         // No token - must verify email first
         emailVerified: false,
@@ -288,9 +295,8 @@ export async function signup(
 }
 
 export async function signout(): Promise<TApiResponse<null>> {
-  const supabase = await createClient()
   try {
-    const { error: signOutError } = await supabase.auth.signOut()
+    const { error: signOutError } = await (await createClient()).auth.signOut()
 
     if (signOutError) {
       return {

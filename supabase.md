@@ -276,3 +276,471 @@ The database schema includes the following key relationships:
    - Indexes on foreign keys improve query performance
    - `idx_chats_user_id` speeds up user-based chat queries
    - `idx_chat_messages_chat_id` speeds up chat message retrieval
+
+## 10. Hiring Platform Extensions
+
+The database schema has been extended to support a hiring platform with candidate and recruiter roles.
+
+### Extended Profiles Table
+
+To support the hiring platform functionality, the profiles table has been extended with additional columns:
+
+```sql
+-- Add new columns to profiles table
+ALTER TABLE public.profiles
+ADD COLUMN role TEXT DEFAULT 'candidate' CHECK (role IN ('candidate', 'recruiter')),
+ADD COLUMN github TEXT,
+ADD COLUMN linkedin TEXT,
+ADD COLUMN twitter TEXT,
+ADD COLUMN resume_url TEXT,
+ADD COLUMN resume_text TEXT, -- Store extracted text from resume for searching
+ADD COLUMN qdrant_point_id TEXT; -- Reference to the vector in Qdrant
+```
+
+### Role-Based Access Control
+
+Additional RLS policies have been added to allow recruiters to view candidate profiles:
+
+```sql
+-- This policy allows recruiters to view all candidate profiles
+CREATE POLICY "Recruiters can view all candidate profiles"
+  ON public.profiles FOR SELECT
+  USING (
+    (auth.uid() IN (SELECT id FROM public.profiles WHERE role = 'recruiter')
+     AND role = 'candidate')
+    OR auth.uid() = id
+  );
+```
+
+### Resume Storage Setup
+
+1. Create a private bucket called "resumes" in Supabase Storage:
+
+   - Go to Storage in the Supabase dashboard
+   - Click "Create a new bucket"
+   - Name it "resumes"
+   - Set it to private (not public)
+
+2. Add RLS policies for the storage bucket:
+
+```sql
+-- Allow candidates to upload their own resumes
+CREATE POLICY "Users can upload their own resumes"
+  ON storage.objects FOR INSERT
+  WITH CHECK (
+    bucket_id = 'resumes' AND
+    auth.uid()::text = (storage.foldername(name))[1]
+  );
+
+-- Allow candidates to access their own resumes AND recruiters to access ALL resumes
+CREATE POLICY "Resume access policy"
+  ON storage.objects FOR SELECT
+  USING (
+    bucket_id = 'resumes' AND
+    (
+      -- User can access their own files
+      (auth.uid()::text = (storage.foldername(name))[1]) OR
+      -- Recruiters can access all files
+      (auth.uid() IN (SELECT id FROM public.profiles WHERE role = 'recruiter'))
+    )
+  );
+
+-- Allow users to update their own resumes
+CREATE POLICY "Users can update their own resumes"
+  ON storage.objects FOR UPDATE
+  USING (
+    bucket_id = 'resumes' AND
+    auth.uid()::text = (storage.foldername(name))[1]
+  );
+
+-- Allow users to delete their own resumes
+CREATE POLICY "Users can delete their own resumes"
+  ON storage.objects FOR DELETE
+  USING (
+    bucket_id = 'resumes' AND
+    auth.uid()::text = (storage.foldername(name))[1]
+  );
+```
+
+### PDF Extraction Implementation (Important)
+
+> **Note:**
+> We use the forked package `pdf-parse-debugging-disabled` for server-side PDF text extraction. The official `pdf-parse` package (v1.1.1) includes debug code that causes runtime errors in production/serverless environments. The forked version is a drop-in replacement with the debug code removed. TypeScript types are provided by `@types/pdf-parse` and a custom module declaration in `src/types/pdf-parse-debugging-disabled.d.ts`.
+>
+> **If you update or replace the PDF extraction logic, always test in a production-like environment.**
+
+### File Upload Workflow
+
+The general workflow for resume handling is:
+
+1. User uploads a PDF file through the frontend
+2. File is stored in the 'resumes' bucket with a path pattern of `{userId}/{filename}`
+3. The URL to the file is stored in the `resume_url` field of the profiles table
+4. For search functionality, text is extracted from the PDF and stored in `resume_text`
+5. Recruiters can search for candidates based on the resume text and view/download resumes
+
+### Vector Search Implementation
+
+For more powerful semantic search capabilities, we'll implement vector search using OpenAI embeddings and Qdrant, a dedicated vector database, instead of using pgvector directly in Supabase:
+
+```sql
+-- In Supabase, we'll just store references to the Qdrant vectors
+ALTER TABLE public.profiles
+ADD COLUMN qdrant_point_id TEXT;
+```
+
+The implementation flow:
+
+1. **PDF Text Extraction**:
+
+   - When a candidate uploads a resume, extract the text content
+   - This can be done client-side using libraries like `pdf-parse` or through a serverless function
+
+2. **Generate Embeddings**:
+
+   - Send the extracted text to OpenAI's embedding API
+   - Use the `text-embedding-ada-002` model (1536 dimensions)
+
+   ```typescript
+   // Example code for generating embeddings
+   const response = await openai.embeddings.create({
+     model: "text-embedding-ada-002",
+     input: resumeText,
+   })
+   const embedding = response.data[0].embedding
+   ```
+
+3. **Store in Qdrant**:
+
+   - Create a point in Qdrant with the embedding and metadata
+   - Store the Qdrant point ID in the Supabase profiles table
+
+   ```typescript
+   // Example code for storing in Qdrant
+   const qdrantClient = new QdrantClient({ url: process.env.QDRANT_URL })
+
+   // Create a point in Qdrant
+   const pointId = uuidv4() // Generate a unique ID
+   await qdrantClient.upsert("resumes", {
+     points: [
+       {
+         id: pointId,
+         vector: embedding,
+         payload: {
+           userId: userId,
+           resumeText: resumeText,
+           resumeUrl: resumeUrl,
+         },
+       },
+     ],
+   })
+
+   // Store the Qdrant point ID in Supabase
+   await supabase
+     .from("profiles")
+     .update({
+       resume_text: resumeText,
+       resume_url: resumeUrl,
+       qdrant_point_id: pointId,
+     })
+     .eq("id", userId)
+   ```
+
+4. **Perform Vector Similarity Search**:
+
+   - When a recruiter searches for candidates, convert their query to an embedding
+   - Find the most similar resume embeddings using Qdrant
+
+   ```typescript
+   // Example code for searching in Qdrant
+   const queryEmbedding = await getEmbedding(queryText)
+
+   const searchResult = await qdrantClient.search("resumes", {
+     vector: queryEmbedding,
+     limit: 10,
+   })
+
+   // Get the user IDs from the search results
+   const userIds = searchResult.map((result) => result.payload.userId)
+
+   // Fetch the full profiles from Supabase
+   const { data: candidates } = await supabase
+     .from("profiles")
+     .select("*")
+     .in("id", userIds)
+     .eq("role", "candidate")
+   ```
+
+5. **Join Results with Profiles**:
+   - Use the user IDs from Qdrant to fetch complete profiles from Supabase
+   - This provides all candidate information alongside the semantic search results
+
+## Integration with Qdrant Vector Database
+
+Instead of using pgvector in Supabase, we're implementing a hybrid approach using Qdrant for vector search operations. This provides several advantages:
+
+### Setting Up Qdrant
+
+1. **Deploy Qdrant**:
+
+   - You can use Qdrant Cloud (managed service)
+   - Alternatively, deploy with Docker: `docker run -p 6333:6333 qdrant/qdrant`
+
+2. **Create a Collection**:
+
+   ```typescript
+   const qdrantClient = new QdrantClient({ url: process.env.QDRANT_URL })
+
+   await qdrantClient.createCollection("resumes", {
+     vectors: {
+       size: 1536, // For OpenAI embeddings
+       distance: "Cosine",
+     },
+   })
+   ```
+
+3. **Configure Environment Variables**:
+   ```
+   QDRANT_URL=your-qdrant-url
+   OPENAI_API_KEY=your-openai-api-key
+   ```
+
+### Advantages of This Approach
+
+1. **Specialized Performance**: Qdrant is purpose-built for vector search with superior performance
+2. **Best of Both Worlds**: Transactional data in Supabase, vector search in Qdrant
+3. **Scalability**: Qdrant can scale independently for large vector collections
+4. **Advanced Features**: Filtering, faceted search, and hybrid search capabilities
+
+### Syncing Between Supabase and Qdrant
+
+To maintain consistency between Supabase and Qdrant:
+
+1. **On Profile Creation/Update**:
+
+   - When a candidate uploads a resume, process and store it in both systems
+   - Save the Qdrant point ID in Supabase for reference
+
+2. **On Profile Deletion**:
+
+   - Delete the corresponding vector in Qdrant when a profile is removed
+   - Use database triggers or application logic to ensure consistency
+
+3. **Failure Handling**:
+   - Implement retry mechanisms for failed operations
+   - Use transaction-like patterns to ensure data consistency
+
+### Using with LangChain
+
+Qdrant integrates well with LangChain for advanced RAG (Retrieval Augmented Generation) scenarios:
+
+```typescript
+import { QdrantVectorStore } from "langchain/vectorstores/qdrant"
+import { OpenAIEmbeddings } from "langchain/embeddings/openai"
+
+// Initialize vector store
+const vectorStore = new QdrantVectorStore(new OpenAIEmbeddings(), {
+  url: process.env.QDRANT_URL,
+  collectionName: "resumes",
+})
+
+// Search for similar resumes
+const results = await vectorStore.similaritySearch(
+  "experienced frontend developer with React",
+  5
+)
+```
+
+## Implementation Guide: Integrating Qdrant with Supabase
+
+This section provides a high-level guide for implementing the Qdrant-Supabase integration for the resume search feature.
+
+### 1. Set Up Qdrant
+
+#### Option 1: Using Qdrant Cloud
+
+1. Create an account at [Qdrant Cloud](https://cloud.qdrant.io/)
+2. Create a new cluster
+3. Save your cluster URL and API key
+
+#### Option 2: Self-hosting with Docker
+
+```bash
+docker run -d -p 6333:6333 -p 6334:6334 \
+    -v $(pwd)/qdrant_data:/qdrant/storage \
+    qdrant/qdrant
+```
+
+### 2. Install Required Dependencies
+
+Required packages:
+
+- `@qdrant/js-client-rest` - Official Qdrant JavaScript client
+- `openai` - OpenAI API client for generating embeddings
+- `pdf-parse-debugging-disabled` - Forked PDF text extraction (do NOT use pdf-parse@1.1.1)
+- `uuid` - For generating unique IDs for Qdrant points
+
+### 3. Create a Qdrant Service
+
+Create a utility module in `src/utils/qdrant.ts` that should implement:
+
+- Collection initialization and management
+- PDF text extraction
+- Embedding generation with OpenAI
+- Resume storage in Qdrant
+- Vector similarity search
+- Cleanup of vectors when resumes are updated or deleted
+
+### 4. Create Resume Upload API Endpoint
+
+Implement an API route at `src/app/api/profile/resume/route.ts` that handles:
+
+- File upload form processing
+- Authentication and role verification
+- **PDF text extraction using the forked `pdf-parse-debugging-disabled` package** (see 'PDF Extraction Implementation (Important)' above for rationale)
+- File storage in Supabase Storage (private bucket, path: `resumes/{userId}/{filename}`)
+- Embedding generation and storage in Qdrant (using OpenAI's `text-embedding-ada-002` model)
+- Updating profile metadata in Supabase with resume info and Qdrant point ID
+- **Error handling:** If PDF extraction or embedding fails, the API returns a clear error message. All errors are logged for debugging.
+- **Type safety:** TypeScript is enforced throughout, with custom type declarations for the forked PDF parser.
+
+> **Maintenance Note:**
+> If you update the PDF extraction logic, always test in a production-like environment. Do not use `pdf-parse@1.1.1` due to debug code issues.
+
+### 5. Create Resume Search API Endpoint
+
+Implement an API route at `src/app/api/profile/search/route.ts` that handles:
+
+- Parsing search queries
+- Authentication and role verification (only recruiters)
+- **Vector similarity search in Qdrant** (converts query to embedding, finds similar resumes)
+- Fetching matching candidate profiles from Supabase
+- Combining and ranking results
+- **Error handling:** If Qdrant or embedding API fails, the API returns a clear error and logs details for debugging.
+
+> **Maintenance Note:**
+> All vector search logic is in `src/utils/qdrant.ts`. Update this module to change embedding models, vector DBs, or PDF extraction logic.
+
+### 6. Add a Delete Resume Handler
+
+When a profile is deleted or a resume is updated, implement handlers that:
+
+- Retrieve existing Qdrant point ID from the profile
+- Delete the corresponding vector from Qdrant
+- Update profile with new information or remove it entirely
+
+### 7. Environment Variables
+
+Required environment variables:
+
+```
+NEXT_PUBLIC_SUPABASE_URL=your-project-url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+NEXT_PUBLIC_SITE_URL=http://localhost:3000
+
+# OpenAI Configuration
+OPENAI_API_KEY=your-openai-api-key
+
+# Qdrant Configuration
+QDRANT_URL=your-qdrant-url
+QDRANT_API_KEY=your-qdrant-api-key  # Only needed for Qdrant Cloud
+```
+
+## Implementation Status
+
+The following components have been implemented for the Qdrant integration:
+
+### Implemented: Qdrant Utility Module
+
+A comprehensive utility module has been created in `src/utils/qdrant.ts` with the following functionality:
+
+1. **Client Initialization**:
+
+   - Configures Qdrant client using environment variables
+   - Sets up OpenAI client for embedding generation
+
+2. **Collection Management**:
+
+   - `initializeCollection()`: Creates and configures the 'resumes' collection if it doesn't exist
+   - Configured with appropriate vector dimensions (1536) for OpenAI embeddings
+   - Uses cosine similarity for optimal semantic matching
+
+3. **PDF Processing**:
+
+   - `extractTextFromPdf(pdfBuffer)`: Extracts text content from uploaded PDF resumes
+   - Handles PDF parsing with proper error handling
+
+4. **Embedding Generation**:
+
+   - `generateEmbedding(text)`: Creates vector embeddings from text using OpenAI
+   - Uses the 'text-embedding-ada-002' model for optimal semantic representation
+
+5. **Resume Storage**:
+
+   - `storeResume(userId, resumeText, resumeUrl)`: Stores resume vectors in Qdrant
+   - Generates a unique point ID that gets stored in Supabase for reference
+   - Includes metadata in the payload for easier retrieval
+
+6. **Semantic Search**:
+
+   - `searchResumes(query, limit)`: Performs similarity search in Qdrant
+   - Converts search queries to embeddings for semantic matching
+   - Returns user IDs with similarity scores for integration with Supabase
+
+7. **Cleanup**:
+
+   - `deleteResume(pointId)`: Removes vectors from Qdrant when resumes are updated/deleted
+   - Ensures consistency between Supabase and Qdrant
+
+8. **LangChain Integration**:
+   - Placeholder for potential LangChain integration for more advanced RAG functionality
+
+### Dependencies Installed
+
+The following packages have been installed to support the Qdrant integration:
+
+```bash
+@qdrant/js-client-rest  # Official Qdrant client
+openai                  # OpenAI API client
+pdf-parse-debugging-disabled # Forked PDF text extraction (do NOT use pdf-parse@1.1.1)
+uuid                    # Unique ID generation
+@types/uuid             # TypeScript types for UUID
+@types/pdf-parse        # TypeScript types for pdf-parse
+@types/node             # Node.js type definitions
+```
+
+### Pending Implementation
+
+The following components are pending implementation:
+
+1. API Endpoints:
+
+   - Resume upload endpoint
+   - Candidate search endpoint
+
+2. Frontend Components:
+
+   - Resume upload form for candidates
+   - Search interface for recruiters
+   - Candidate profile display
+
+3. Integration Testing:
+   - End-to-end testing of the resume upload and search flow
+   - Performance testing of semantic search capabilities
+
+### Understanding the Role-Based System
+
+The hiring platform has two types of users:
+
+1. **Candidates**:
+
+   - Have `role = 'candidate'` in their profile
+   - Can upload resumes and add professional links
+   - Can only see and edit their own profile
+
+2. **Recruiters**:
+   - Have `role = 'recruiter'` in their profile
+   - Can view all candidate profiles
+   - Can access all candidate resumes
+   - Can search for candidates based on skills and experience

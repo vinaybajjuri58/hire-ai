@@ -226,6 +226,14 @@ export async function signup(
       }
     }
 
+    // Send verification email after user creation
+    try {
+      await adminClient.auth.admin.inviteUserByEmail(userData.email)
+    } catch (inviteError) {
+      console.error("Failed to send verification email:", inviteError)
+      // Do not fail signup if invite fails, just log
+    }
+
     // Instead of relying on a trigger, create the profile directly with admin client
     // This ensures we bypass any RLS policies that might cause recursion
     const { error: profileError } = await adminClient.from("profiles").insert({

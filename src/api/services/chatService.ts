@@ -427,7 +427,7 @@ export async function sendMessage(
         github: profile.github,
         linkedin: profile.linkedin,
         twitter: profile.twitter,
-        profile_link: profile.resume_url || null,
+        profile_link: `/profile/${profile.id}`,
       }))
       const prompt = PROMPT_TEMPLATE.replace("{query}", message).replace(
         "{candidates}",

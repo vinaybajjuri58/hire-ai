@@ -1,4 +1,4 @@
-# Hire Ai
+# Ingenium
 
 ## Setup Instructions
 

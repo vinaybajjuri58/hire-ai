@@ -22,7 +22,7 @@ export default async function PublicLayout({
       <header className="border-b py-4">
         <div className="container mx-auto px-4 flex justify-between items-center">
           <Link href="/" className="text-xl font-bold">
-            YourApp
+            Ingenium
           </Link>
           <nav className="flex items-center gap-4">
             <ThemeToggle />

@@ -50,6 +50,13 @@ These are the top relevant candidates according to your requirements
 - [Alice Smith](https://example.com/alice)
 - [Bob Jones](https://example.com/bob)
 
+Recruiter query: "Hey"
+Candidate profiles:
+[]
+
+Output:
+Hey im a recruitment assistant please tell me what type and experience level of candidates you are looking for.
+
 
 ---
 
@@ -420,7 +427,7 @@ export async function sendMessage(
         github: profile.github,
         linkedin: profile.linkedin,
         twitter: profile.twitter,
-        profile_link: profile.resume_url || null,
+        profile_link: `/profile/${profile.id}`,
       }))
       const prompt = PROMPT_TEMPLATE.replace("{query}", message).replace(
         "{candidates}",
